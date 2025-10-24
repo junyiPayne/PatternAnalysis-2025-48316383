@@ -16,17 +16,6 @@ from pathlib import Path
 def predict(model, image_path, device='cuda', target_size=None):
     """
     Predict segmentation for a single 3D image with optional downsampling.
-    
-    Args:
-        model: trained UNet3D model
-        image_path: path to .nii or .nii.gz file
-        device: 'cuda' or 'cpu'
-        target_size: tuple (D,H,W) for downsampling, must match training size
-    
-    Returns:
-        prediction: label map (D, H, W)
-        affine: original affine matrix for saving
-        original_shape: original image shape for upsampling back if needed
     """
     model.eval()
     
@@ -55,13 +44,43 @@ def predict(model, image_path, device='cuda', target_size=None):
     
     return prediction, affine, original_shape
 
+def dice_coefficient_np(pred, target, num_classes):
+    """Calculate Dice coefficient for numpy arrays."""
+    dice_scores = np.zeros(num_classes)
+    for c in range(num_classes):
+        pred_c = (pred == c).astype(np.float32)
+        target_c = (target == c).astype(np.float32)
+        intersection = (pred_c * target_c).sum()
+        union = pred_c.sum() + target_c.sum()
+        if union == 0:
+            dice_scores[c] = 1.0 if intersection == 0 else 0.0
+        else:
+            dice_scores[c] = (2.0 * intersection) / union
+    return dice_scores
+
+def get_test_split(all_images, all_labels, split_ratio=(0.7, 0.15, 0.15), seed=42):
+    """Get test set indices matching dataset.py split logic."""
+    np.random.seed(seed)
+    indices = np.random.permutation(len(all_images))
+    
+    train_end = int(split_ratio[0] * len(indices))
+    val_end = train_end + int(split_ratio[1] * len(indices))
+    
+    test_indices = indices[val_end:]
+    test_images = [all_images[i] for i in test_indices]
+    test_labels = [all_labels[i] for i in test_indices]
+    
+    return test_images, test_labels
+
 if __name__ == "__main__":
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
     
+    # MUST match training configuration
     num_classes = 6
-    base_filters = 32
-    target_size = (128, 128, 64)
+    base_filters = 32  # CHECK: match your train.py
+    target_size = (128, 128, 64)  # CHECK: match your train.py
+    seed = 42  # MUST match dataset.py
     
     model = UNet3D(in_channels=1, num_classes=num_classes, base_filters=base_filters).to(device)
     
@@ -80,27 +99,43 @@ if __name__ == "__main__":
         print(f"Loaded model weights from {checkpoint_path}")
     
     data_root = r"C:\Users\17561\Desktop\new 3710\data\HipMRI_study_complete_release_v1"
-    test_img_dir = os.path.join(data_root, "semantic_MRs_anon")
+    img_dir = os.path.join(data_root, "semantic_MRs_anon")
+    label_dir = os.path.join(data_root, "semantic_labels_anon")
     
-    test_images = sorted(glob.glob(os.path.join(test_img_dir, "*.nii.gz")))
+    all_images = sorted(glob.glob(os.path.join(img_dir, "*.nii.gz")))
+    all_labels = sorted(glob.glob(os.path.join(label_dir, "*.nii.gz")))
     
-    if not test_images:
-        print(f"No test images found in {test_img_dir}")
-        print("Please adjust test_img_dir path in the script.")
-        exit(1)
+    # Get TEST SET ONLY (matching dataset.py split)
+    test_images, test_labels = get_test_split(all_images, all_labels, seed=seed)
     
-    print(f"Found {len(test_images)} images to process\n")
+    print(f"Total images: {len(all_images)}")
+    print(f"Test set size: {len(test_images)} (15% of total)\n")
     
     output_dir = Path("./predictions")
     output_dir.mkdir(exist_ok=True)
     
-    for img_path in test_images:
+    all_dice_scores = []
+    
+    for img_path, label_path in zip(test_images, test_labels):
         img_name = os.path.basename(img_path)
         print(f"Processing: {img_name}")
         
         try:
+            # Generate prediction
             prediction, affine, orig_shape = predict(model, img_path, device, target_size=target_size)
             
+            # Load ground truth
+            label_nifti = nib.load(label_path)
+            gt_label = label_nifti.get_fdata(caching='unchanged').astype(np.uint8)
+            if len(gt_label.shape) == 4:
+                gt_label = gt_label[:, :, :, 0]
+            gt_label = np.clip(gt_label, 0, num_classes - 1)
+            
+            # Calculate Dice scores
+            dice_scores = dice_coefficient_np(prediction, gt_label, num_classes)
+            all_dice_scores.append(dice_scores)
+            
+            # Save prediction
             output_name = img_name.replace('.nii.gz', '_pred.nii.gz').replace('.nii', '_pred.nii')
             output_path = output_dir / output_name
             
@@ -108,11 +143,41 @@ if __name__ == "__main__":
             nib.save(nifti_pred, str(output_path))
             
             unique_labels = np.unique(prediction)
+            mean_dice = np.mean(dice_scores[1:])  # Exclude background
             print(f"  Saved: {output_path.name}")
-            print(f"  Shape: {prediction.shape}, Labels present: {unique_labels.tolist()}")
+            print(f"  Dice per class: {[f'{d:.4f}' for d in dice_scores]}")
+            print(f"  Mean Dice (excl. bg): {mean_dice:.4f}\n")
             
         except Exception as e:
-            print(f"  ERROR processing {img_name}: {e}")
+            print(f"  ERROR processing {img_name}: {e}\n")
             continue
     
-    print(f"\nDone! All predictions saved to {output_dir.absolute()}")
+    # Calculate and display test set statistics
+    if all_dice_scores:
+        all_dice_scores = np.array(all_dice_scores)
+        mean_dice_per_class = np.mean(all_dice_scores, axis=0)
+        std_dice_per_class = np.std(all_dice_scores, axis=0)
+        mean_dice_overall = np.mean(mean_dice_per_class[1:])
+        
+        print("\n" + "="*60)
+        print("TEST SET RESULTS")
+        print("="*60)
+        print(f"Number of test cases: {len(all_dice_scores)}")
+        print(f"\nDice Score per Class (mean ± std):")
+        for c in range(num_classes):
+            print(f"  Class {c}: {mean_dice_per_class[c]:.4f} ± {std_dice_per_class[c]:.4f}")
+        print(f"\nMean Dice (excluding background): {mean_dice_overall:.4f}")
+        
+        # Check if requirement met
+        min_dice_non_bg = np.min(mean_dice_per_class[1:])
+        print(f"Minimum Dice (excluding background): {min_dice_non_bg:.4f}")
+        
+        if np.all(mean_dice_per_class[1:] >= 0.7):
+            print("\n✅ SUCCESS: All classes have Dice ≥ 0.7!")
+        else:
+            failing_classes = np.where(mean_dice_per_class[1:] < 0.7)[0] + 1
+            print(f"\n❌ REQUIREMENT NOT MET: Classes {failing_classes.tolist()} have Dice < 0.7")
+        
+        print("="*60)
+    
+    print(f"\nAll predictions saved to {output_dir.absolute()}")
