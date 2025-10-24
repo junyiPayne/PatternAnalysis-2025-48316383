@@ -1,107 +1,190 @@
 # dataset.py
 
+import torch
+from torch.utils.data import Dataset
 import numpy as np
 import nibabel as nib
-from tqdm import tqdm
 import glob
 import os
-# 如果使用 PyTorch，您可能需要导入 torch 和 torch.utils.data.Dataset
-# 如果使用 TensorFlow，您可能需要导入 tensorflow 和 tf.data.Dataset
+from tqdm import tqdm
+from scipy.ndimage import zoom
 
-# --- 辅助函数：将标签转换为 One-Hot 编码 (参考报告附录 B to_channels 函数) ---
 def to_channels(arr: np.ndarray, dtype=np.uint8) -> np.ndarray:
-    """将包含多个整数类别的标签数组转换为多通道 One-Hot 编码"""
-    # 报告中的示例代码假设类别从 0 开始且连续
+    """将标签数组转换为 One-Hot 编码（你之前的函数）"""
     channels = np.unique(arr)
-    # 创建一个在最后一维增加通道数的新数组
     res = np.zeros(arr.shape + (len(channels),), dtype=dtype)
-    
-    # 遍历所有唯一的标签值
     for c in channels:
-        C = int(c)
-        # 将原始数组中等于 c 的位置在新数组的相应通道上设为 1
-        res[arr == c, C] = 1 
-        
+        c = int(c)
+        res[..., c:c+1][arr == c] = 1
     return res
 
-# --- 核心函数：加载 3D Nifti 数据 (基于报告附录 B load_data_3D 示例) ---
-def load_data_3D(image_names, norm_image=False, categorical=False, dtype=np.float32, 
-                 get_affines=False, orient=False, early_stop=False):
+def load_data_3D(imageNames, normImage=False, categorical=False, dtype=np.float32,
+                 getAffines=False, orient=False, early_stop=False, num_classes=6):
     """
-    从 Nifti 文件名列表中加载 3D 医疗影像数据。
-    注意：您需要实现完整的错误检查和内存管理逻辑。
+    你之前的 load_data_3D 函数（简化版）
+    Load all images into memory at once
     """
+    affines = []
+    num = len(imageNames)
     
-    # --- 1. 获取固定尺寸（Find Fixed Size） ---
-    num = len(image_names)
-    nifti_image = nib.load(image_names[0])
-    first_case = nifti_image.get_fdata(caching='unchanged')
-
-    # 处理可能的 4D 数据（例如移除额外维度），并确定最终形状
+    # 获取第一个样本的尺寸
+    first_case = nib.load(imageNames[0]).get_fdata(caching='unchanged')
     if len(first_case.shape) == 4:
-        first_case = first_case[:, :, :, 0] # 移除第 4 维 [cite: 394, 399]
-
+        first_case = first_case[:,:,:,0]
+    
     if categorical:
-        # 如果是标签，转换为 One-Hot 编码来确定通道数 [cite: 410]
         first_case = to_channels(first_case, dtype=dtype)
         rows, cols, depth, channels = first_case.shape
         images = np.zeros((num, rows, cols, depth, channels), dtype=dtype)
     else:
-        # 如果是图像，只有一个通道
         rows, cols, depth = first_case.shape
         images = np.zeros((num, rows, cols, depth), dtype=dtype)
-
-    # --- 2. 循环加载所有数据 ---
-    for i, in_name in enumerate(tqdm(image_names)):
-        nifti_image = nib.load(in_name)
-        in_image = nifti_image.get_fdata(caching='unchanged') # 读取数据 [cite: 423]
+    
+    for i, inName in enumerate(tqdm(imageNames, desc="Loading data")):
+        niftiImage = nib.load(inName)
+        inImage = niftiImage.get_fdata(caching='unchanged')
+        affine = niftiImage.affine
         
-        # 处理可能的 4D 数据和尺寸裁剪
-        if len(in_image.shape) == 4:
-            in_image = in_image[:, :, :, 0] # 移除额外维度 [cite: 426]
-            # in_image = in_image[:, :, :depth] # 剪裁切片以匹配固定深度 [cite: 427]
-
-        in_image = in_image.astype(dtype)
-
-        # 归一化处理（如果需要）
-        if norm_image:
-            # 报告中的归一化示例是 z-score 标准化 [cite: 441, 449]
-            in_image = (in_image - in_image.mean()) / in_image.std()
-
-        # 标签转换为 One-Hot 编码（如果需要）
+        if len(inImage.shape) == 4:
+            inImage = inImage[:,:,:,0]
+        
+        inImage = inImage[:,:,:depth]  # clip slices
+        inImage = inImage.astype(dtype)
+        
+        if normImage:
+            inImage = (inImage - inImage.mean()) / (inImage.std() + 1e-8)
+        
         if categorical:
-            in_image = to_channels(in_image, dtype=dtype) # [cite: 450]
-            # 存储 5D 数组：(num, rows, cols, depth, channels)
-            images[i, :] = in_image
+            inImage = to_channels(inImage, dtype=dtype)
+            images[i,:inImage.shape[0],:inImage.shape[1],:inImage.shape[2],:inImage.shape[3]] = inImage
         else:
-            # 存储 4D 数组：(num, rows, cols, depth)
-            images[i, :] = in_image
+            images[i,:inImage.shape[0],:inImage.shape[1],:inImage.shape[2]] = inImage
         
-        # ... 其他逻辑（如保存仿射矩阵 affines, 提前停止 early_stop）[cite: 360, 466]
+        affines.append(affine)
+        if i > 20 and early_stop:
+            break
+    
+    if getAffines:
+        return images, affines
+    else:
+        return images
 
-    return images
-
-# --- Data Loader 类（例如 PyTorch 的 Dataset） ---
-# 建议您封装上述函数，实现一个高效的 DataLoader 类
-class Prostate3DDataset():
-    def __init__(self, image_paths, label_paths, transform=None):
-        self.image_paths = image_paths
-        self.label_paths = label_paths
-        self.transform = transform # 用于数据增强
-
+class Prostate3DDataset(Dataset):
+    def __init__(self, data_root, split='train', split_ratio=(0.7, 0.15, 0.15), 
+                 num_classes=6, transform=None, seed=42, target_size=(128, 128, 64),
+                 preload=False):
+        """
+        Args:
+            preload: True = 使用你之前的 load_data_3D 预加载所有数据到内存
+                     False = 按需加载（当前方式）
+        """
+        self.num_classes = num_classes
+        self.transform = transform
+        self.target_size = target_size
+        self.preload = preload
+        
+        # 设置路径
+        base_dir = os.path.join(data_root, "HipMRI_study_complete_release_v1")
+        img_dir = os.path.join(base_dir, "semantic_MRs_anon")
+        label_dir = os.path.join(base_dir, "semantic_labels_anon")
+        
+        # 获取所有文件
+        all_images = sorted(glob.glob(os.path.join(img_dir, "*.nii*")))
+        all_labels = sorted(glob.glob(os.path.join(label_dir, "*.nii*")))
+        
+        print(f"Found {len(all_images)} images and {len(all_labels)} labels")
+        
+        # 数据集划分
+        np.random.seed(seed)
+        indices = np.random.permutation(len(all_images))
+        
+        train_end = int(split_ratio[0] * len(indices))
+        val_end = train_end + int(split_ratio[1] * len(indices))
+        
+        if split == 'train':
+            selected_indices = indices[:train_end]
+        elif split == 'val':
+            selected_indices = indices[train_end:val_end]
+        else:  # test
+            selected_indices = indices[val_end:]
+        
+        self.image_paths = [all_images[i] for i in selected_indices]
+        self.label_paths = [all_labels[i] for i in selected_indices]
+        
+        print(f"{split.upper()} set: {len(self.image_paths)} samples")
+        
+        # 如果 preload=True，使用你之前的函数预加载
+        if self.preload:
+            print("Preloading images...")
+            self.images = load_data_3D(self.image_paths, normImage=True, 
+                                      categorical=False, dtype=np.float32)
+            print("Preloading labels...")
+            self.labels = load_data_3D(self.label_paths, normImage=False, 
+                                      categorical=True, dtype=np.uint8,
+                                      num_classes=num_classes)
+            print("Preload complete!")
+        else:
+            self.images = None
+            self.labels = None
+            if target_size:
+                print(f"Downsampling to: {target_size}")
+    
     def __len__(self):
         return len(self.image_paths)
-
+    
     def __getitem__(self, idx):
-        # 实际加载逻辑应调用 load_data_3D 或类似功能
-        # 为了效率，可以只加载单个文件并进行预处理
-        image = nib.load(self.image_paths[idx]).get_fdata()
-        label = nib.load(self.label_paths[idx]).get_fdata()
-
-        # ... 在这里进行必要的预处理、裁剪、标准化和 One-Hot 编码 ...
+        if self.preload:
+            # 使用预加载的数据
+            image = self.images[idx]  # (D, H, W)
+            label = self.labels[idx]  # (D, H, W, C)
+            
+            # 下采样（如果需要）
+            if self.target_size:
+                zoom_factors = [t / s for t, s in zip(self.target_size, image.shape)]
+                image = zoom(image, zoom_factors, order=1)
+                zoom_factors_4d = zoom_factors + [1]  # 保持通道维度
+                label = zoom(label, zoom_factors_4d, order=0)
+            
+            # 转换为 tensor
+            image = torch.from_numpy(image).unsqueeze(0).float()  # (1, D, H, W)
+            label = torch.from_numpy(label).permute(3, 0, 1, 2).float()  # (C, D, H, W)
+            
+        else:
+            # 按需加载（原来的方式）
+            img_nifti = nib.load(self.image_paths[idx])
+            image = img_nifti.get_fdata(caching='unchanged').astype(np.float32)
+            
+            label_nifti = nib.load(self.label_paths[idx])
+            label = label_nifti.get_fdata(caching='unchanged').astype(np.uint8)
+            
+            # Remove extra dimensions if 4D
+            if len(image.shape) == 4:
+                image = image[:, :, :, 0]
+            if len(label.shape) == 4:
+                label = label[:, :, :, 0]
+            
+            # Downsample
+            if self.target_size:
+                zoom_factors = [t / o for t, o in zip(self.target_size, image.shape)]
+                image = zoom(image, zoom_factors, order=1)
+                label = zoom(label, zoom_factors, order=0)
+            
+            # Clip label values
+            label = np.clip(label, 0, self.num_classes - 1)
+            
+            # Normalize image
+            image = (image - image.mean()) / (image.std() + 1e-8)
+            
+            # Convert label to one-hot
+            label_onehot = np.zeros((self.num_classes,) + label.shape, dtype=np.uint8)
+            for c in range(self.num_classes):
+                label_onehot[c] = (label == c).astype(np.uint8)
+            
+            # Convert to tensors
+            image = torch.from_numpy(image).unsqueeze(0).float()
+            label = torch.from_numpy(label_onehot).float()
         
         if self.transform:
             image, label = self.transform(image, label)
-
-        # 调整轴序以适应您的深度学习框架 (例如 PyTorch: C, D, H, W)
+        
         return image, label
