@@ -39,9 +39,9 @@ class ConvBlock3D(nn.Module):
 # --- 核心模块：3D UNet 模型 ---
 class UNet3D(nn.Module):
     """
-    基于 3D 卷积的 U-Net 模型 [cite: 493]
+    基于 3D 卷积的 U-Net 模型
     """
-    def __init__(self, in_channels=1, num_classes=5):
+    def __init__(self, in_channels=1, num_classes=6):  # 改为6个类别
         super().__init__()
         
         # 编码器部分 (下采样路径)
