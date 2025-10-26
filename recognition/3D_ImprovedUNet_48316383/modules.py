@@ -12,7 +12,7 @@ import torch.nn as nn
 # --- 基础卷积块 ---
 class ConvBlock3D(nn.Module):
     """
-    标准的 3D 卷积块：Conv3D -> GroupNorm -> ReLU -> Conv3D -> GroupNorm -> ReLU
+    带残差连接的 3D 卷积块
     """
     def __init__(self, in_channels, out_channels):
         super().__init__()
@@ -22,16 +22,22 @@ class ConvBlock3D(nn.Module):
             nn.ReLU(inplace=True),
             nn.Conv3d(out_channels, out_channels, kernel_size=3, padding=1),
             nn.GroupNorm(num_groups=min(8, out_channels), num_channels=out_channels),
-            nn.ReLU(inplace=True),
         )
+        self.relu = nn.ReLU(inplace=True)
+
+        # 如果输入和输出通道数不同，使用 1x1 卷积调整通道数
+        self.shortcut = nn.Conv3d(in_channels, out_channels, kernel_size=1) if in_channels != out_channels else nn.Identity()
 
     def forward(self, x):
-        return self.double_conv(x)
+        identity = self.shortcut(x)  # 残差分支
+        out = self.double_conv(x)   # 主分支
+        out += identity             # 残差连接
+        return self.relu(out)       # 激活函数
 
 # --- 标准 3D U-Net ---
 class UNet3D(nn.Module):
     """
-    标准 3D U-Net 模型
+    改进的 3D U-Net 模型（带残差连接）
     """
     def __init__(self, in_channels=1, num_classes=6, base_filters=16):
         super().__init__()
