@@ -7,7 +7,7 @@ import nibabel as nib
 import glob
 import os
 from tqdm import tqdm
-from scipy.ndimage import zoom
+from scipy.ndimage import zoom, rotate
 import matplotlib.pyplot as plt
 
 def to_channels(arr: np.ndarray, num_classes=6, dtype=np.uint8) -> np.ndarray:
@@ -79,7 +79,7 @@ class Prostate3DDataset(Dataset):
             split_ratio (tuple): 训练集、验证集、测试集的比例
         """
         self.num_classes = num_classes
-        self.transform = transform  # 修复：正确初始化 transform
+        self.transform = transform  # 数据增强逻辑
         self.target_size = target_size
         self.preload = preload
         
@@ -139,6 +139,10 @@ class Prostate3DDataset(Dataset):
         class_counts = torch.zeros(self.num_classes)
         total_voxels = 0
 
+        # 临时禁用数据增强，以便统计类别分布时不应用增强
+        original_transform = self.transform
+        self.transform = None
+
         for idx in tqdm(range(len(self)), desc="统计类别分布"):
             _, label = self.__getitem__(idx)
             label_tensor = torch.from_numpy(label) if isinstance(label, np.ndarray) else label
@@ -148,6 +152,9 @@ class Prostate3DDataset(Dataset):
                 count = (label_tensor[c] > 0.5).sum().item()
                 class_counts[c] += count
                 total_voxels += count
+
+        # 恢复原始的 transform
+        self.transform = original_transform
 
         # 保存类别分布信息
         self.class_counts = class_counts
@@ -217,6 +224,7 @@ class Prostate3DDataset(Dataset):
             image = torch.from_numpy(image).unsqueeze(0).float()
             label = torch.from_numpy(label_onehot).float()
         
+        # 数据增强逻辑
         if self.transform:
             image, label = self.transform(image, label)
         
@@ -224,9 +232,10 @@ class Prostate3DDataset(Dataset):
 
 class RandomAugmentation:
     """数据增强类"""
-    def __init__(self, flip_prob=0.5, noise_std=0.05):
+    def __init__(self, flip_prob=0.5, noise_std=0.05, rotate_angle=15):
         self.flip_prob = flip_prob
         self.noise_std = noise_std
+        self.rotate_angle = rotate_angle
 
     def __call__(self, image, label):
         # 随机翻转
@@ -242,6 +251,13 @@ class RandomAugmentation:
         if np.random.rand() < self.flip_prob:
             noise = torch.randn_like(image) * self.noise_std
             image = image + noise
+        
+        # 随机旋转
+        if self.rotate_angle > 0:
+            angle = np.random.uniform(-self.rotate_angle, self.rotate_angle)
+            axes = (2, 3)  # 在 (H, W) 平面上旋转
+            image = torch.from_numpy(rotate(image.numpy(), angle, axes=axes, reshape=False, order=1))
+            label = torch.from_numpy(rotate(label.numpy(), angle, axes=axes, reshape=False, order=0))
         
         return image, label
 
