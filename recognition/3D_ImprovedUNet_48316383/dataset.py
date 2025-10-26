@@ -64,13 +64,27 @@ def load_data_3D(imageNames, normImage=False, categorical=False, dtype=np.float3
         return images
 
 class Prostate3DDataset(Dataset):
-    def __init__(self, data_root, split='train', split_ratio=(0.7, 0.15, 0.15), 
-                 num_classes=6, transform=None, seed=42, target_size=(128, 128, 64),
-                 preload=False):
+    def __init__(self, data_root, split='train', num_classes=6, target_size=(128, 128, 64), 
+                 preload=False, transform=None, seed=42, split_ratio=(0.7, 0.15, 0.15)):
+        """
+        参数:
+            data_root (str): 数据根目录
+            split (str): 'train', 'val', 或 'test'
+            num_classes (int): 类别数量
+            target_size (tuple): 目标图像大小
+            preload (bool): 是否预加载数据
+            transform (callable): 数据增强函数
+            seed (int): 随机种子
+            split_ratio (tuple): 训练集、验证集、测试集的比例
+        """
         self.num_classes = num_classes
-        self.transform = transform
+        self.transform = transform  # 修复：正确初始化 transform
         self.target_size = target_size
         self.preload = preload
+        
+        # 验证 split_ratio 的合法性
+        assert sum(split_ratio) == 1.0, "split_ratio 必须和为 1"
+        assert all(0 <= r <= 1 for r in split_ratio), "split_ratio 的每个值必须在 0 和 1 之间"
         
         base_dir = os.path.join(data_root, "HipMRI_study_complete_release_v1")
         img_dir = os.path.join(base_dir, "semantic_MRs_anon")
@@ -113,7 +127,59 @@ class Prostate3DDataset(Dataset):
             self.labels = None
             if target_size:
                 print(f"Downsampling to: {target_size}")
-    
+        
+        self.class_weights = self._compute_class_weights()  # 添加这行
+
+    def _compute_class_weights(self, method='inverse_sqrt_frequency'):
+        """
+        改进权重计算，添加更多详细的日志输出
+        """
+        print("\n开始计算类别权重...")
+        class_counts = torch.zeros(self.num_classes)
+        total_samples = 0
+        
+        for idx in tqdm(range(len(self)), desc="统计类别分布"):
+            _, label = self.__getitem__(idx)
+            label_tensor = torch.from_numpy(label) if isinstance(label, np.ndarray) else label
+            
+            # 检查标签的有效性
+            assert label_tensor.shape[0] == self.num_classes, f"标签通道数不正确: {label_tensor.shape}"
+            
+            # 统计每个类别的体素数量
+            for c in range(self.num_classes):
+                count = (label_tensor[c] > 0.5).sum().item()
+                class_counts[c] += count
+                if count > 0:
+                    total_samples += 1
+        
+        # 详细输出类别统计信息
+        print("\n类别统计:")
+        total_voxels = class_counts.sum().item()
+        for c in range(self.num_classes):
+            voxel_count = class_counts[c].item()
+            percentage = (voxel_count / total_voxels) * 100
+            print(f"类别 {c}: {voxel_count:,} 体素 ({percentage:.2f}%)")
+        
+        # 计算权重
+        class_frequencies = class_counts / total_voxels
+        if method == 'inverse_sqrt_frequency':
+            weights = 1.0 / torch.sqrt(class_frequencies + 1e-6)
+        else:  # inverse_frequency
+            weights = 1.0 / (class_frequencies + 1e-6)
+        
+        # 归一化权重
+        weights = weights / weights.mean()
+        
+        # 限制权重范围
+        max_weight = 15.0
+        weights = torch.clamp(weights, min=0.1, max=max_weight)
+        
+        print("\n计算得到的权重:")
+        for c in range(self.num_classes):
+            print(f"类别 {c}: {weights[c]:.4f}")
+        
+        return weights
+
     def __len__(self):
         return len(self.image_paths)
     
@@ -159,5 +225,28 @@ class Prostate3DDataset(Dataset):
         
         if self.transform:
             image, label = self.transform(image, label)
+        
+        return image, label
+
+class RandomAugmentation:
+    """数据增强类"""
+    def __init__(self, flip_prob=0.5, noise_std=0.05):
+        self.flip_prob = flip_prob
+        self.noise_std = noise_std
+
+    def __call__(self, image, label):
+        # 随机翻转
+        if np.random.rand() < self.flip_prob:
+            image = torch.flip(image, dims=[2])  # 水平翻转
+            label = torch.flip(label, dims=[2])
+        
+        if np.random.rand() < self.flip_prob:
+            image = torch.flip(image, dims=[3])  # 垂直翻转
+            label = torch.flip(label, dims=[3])
+        
+        # 添加高斯噪声
+        if np.random.rand() < self.flip_prob:
+            noise = torch.randn_like(image) * self.noise_std
+            image = image + noise
         
         return image, label
