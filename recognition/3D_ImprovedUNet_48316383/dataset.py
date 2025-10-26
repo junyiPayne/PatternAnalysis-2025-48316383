@@ -8,6 +8,7 @@ import glob
 import os
 from tqdm import tqdm
 from scipy.ndimage import zoom
+import matplotlib.pyplot as plt
 
 def to_channels(arr: np.ndarray, num_classes=6, dtype=np.uint8) -> np.ndarray:
     """将标签数组转换为 One-Hot 编码 - 修复版"""
@@ -132,52 +133,45 @@ class Prostate3DDataset(Dataset):
 
     def _compute_class_weights(self, method='inverse_sqrt_frequency'):
         """
-        改进权重计算，添加更多详细的日志输出
+        计算类别权重并统计类别分布
         """
         print("\n开始计算类别权重...")
         class_counts = torch.zeros(self.num_classes)
-        total_samples = 0
-        
+        total_voxels = 0
+
         for idx in tqdm(range(len(self)), desc="统计类别分布"):
             _, label = self.__getitem__(idx)
             label_tensor = torch.from_numpy(label) if isinstance(label, np.ndarray) else label
-            
-            # 检查标签的有效性
-            assert label_tensor.shape[0] == self.num_classes, f"标签通道数不正确: {label_tensor.shape}"
-            
+
             # 统计每个类别的体素数量
             for c in range(self.num_classes):
                 count = (label_tensor[c] > 0.5).sum().item()
                 class_counts[c] += count
-                if count > 0:
-                    total_samples += 1
-        
-        # 详细输出类别统计信息
-        print("\n类别统计:")
-        total_voxels = class_counts.sum().item()
-        for c in range(self.num_classes):
-            voxel_count = class_counts[c].item()
-            percentage = (voxel_count / total_voxels) * 100
-            print(f"类别 {c}: {voxel_count:,} 体素 ({percentage:.2f}%)")
-        
-        # 计算权重
+                total_voxels += count
+
+        # 保存类别分布信息
+        self.class_counts = class_counts
+
+        # 计算类别权重
         class_frequencies = class_counts / total_voxels
         if method == 'inverse_sqrt_frequency':
             weights = 1.0 / torch.sqrt(class_frequencies + 1e-6)
         else:  # inverse_frequency
             weights = 1.0 / (class_frequencies + 1e-6)
-        
+
         # 归一化权重
         weights = weights / weights.mean()
-        
-        # 限制权重范围
-        max_weight = 15.0
-        weights = torch.clamp(weights, min=0.1, max=max_weight)
-        
+        weights = torch.clamp(weights, min=0.1, max=15.0)
+
+        print("\n类别统计:")
+        for c in range(self.num_classes):
+            percentage = (class_counts[c] / total_voxels) * 100
+            print(f"类别 {c}: {class_counts[c]:,.1f} 体素 ({percentage:.2f}%)")
+
         print("\n计算得到的权重:")
         for c in range(self.num_classes):
             print(f"类别 {c}: {weights[c]:.4f}")
-        
+
         return weights
 
     def __len__(self):
@@ -250,3 +244,23 @@ class RandomAugmentation:
             image = image + noise
         
         return image, label
+
+def plot_class_distribution(class_counts, save_path="class_distribution.png"):
+    """
+    绘制类别分布图并保存为图片
+    Args:
+        class_counts (torch.Tensor): 每个类别的体素数量
+        save_path (str): 保存路径
+    """
+    num_classes = len(class_counts)
+    plt.figure(figsize=(8, 6))
+    plt.bar(range(num_classes), class_counts.cpu().numpy(), color='skyblue')
+    plt.xlabel("Class Index")
+    plt.ylabel("Voxel Count")
+    plt.title("Class Distribution")
+    plt.xticks(range(num_classes))
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
+    plt.tight_layout()
+    plt.savefig(save_path)
+    plt.close()
+    print(f"Class distribution plot saved to {save_path}")
