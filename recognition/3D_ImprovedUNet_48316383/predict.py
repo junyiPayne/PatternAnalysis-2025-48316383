@@ -12,6 +12,7 @@ from modules import UNet3D
 from scipy.ndimage import zoom
 import glob
 from pathlib import Path
+from config import CONFIG  # 导入配置
 
 def predict(model, image_path, device='cuda', target_size=None):
     """
@@ -35,8 +36,11 @@ def predict(model, image_path, device='cuda', target_size=None):
     image_tensor = torch.from_numpy(image).unsqueeze(0).unsqueeze(0).float().to(device)
     
     with torch.no_grad():
-        output = model(image_tensor)
-        prediction = torch.argmax(output, dim=1).cpu().numpy()[0]
+        # predict.py 中启用 AMP
+        with torch.amp.autocast(device_type='cuda'):
+            output = model(image_tensor)
+            output = torch.softmax(output, dim=1)  # 确保与训练时一致
+            prediction = torch.argmax(output, dim=1).cpu().numpy()[0]
     
     if target_size is not None:
         zoom_factors_back = [o / t for o, t in zip(original_shape, target_size)]
@@ -78,25 +82,22 @@ if __name__ == "__main__":
     
     # MUST match training configuration
     num_classes = 6
-    base_filters = 32  # CHECK: match your train.py
+    base_filters = 16  # CHECK: match your train.py
     target_size = (128, 128, 64)  # CHECK: match your train.py
     seed = 42  # MUST match dataset.py
     
-    model = UNet3D(in_channels=1, num_classes=num_classes, base_filters=base_filters).to(device)
+    # 初始化模型
+    model = UNet3D(
+        in_channels=1, 
+        num_classes=CONFIG['num_classes'], 
+        base_filters=CONFIG['base_filters']
+    ).to(device)
     
-    checkpoint_path = 'best_model.pth'
-    if not os.path.exists(checkpoint_path):
-        raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
-    
-    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
-    
-    if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
-        model.load_state_dict(checkpoint['model_state_dict'])
-        print(f"Loaded checkpoint from epoch {checkpoint.get('epoch', 'N/A')}")
-        print(f"Best validation Dice: {checkpoint.get('best_dice', 'N/A'):.4f}")
-    else:
-        model.load_state_dict(checkpoint)
-        print(f"Loaded model weights from {checkpoint_path}")
+    # 加载权重
+    checkpoint = torch.load('best_model.pth', map_location=device)
+    model.load_state_dict(checkpoint['model_state_dict'])
+    print(f"Loaded checkpoint from epoch {checkpoint.get('epoch', 'N/A')}")
+    print(f"Best validation Dice: {checkpoint.get('best_dice', 'N/A'):.4f}")
     
     data_root = r"C:\Users\17561\Desktop\new 3710\data\HipMRI_study_complete_release_v1"
     img_dir = os.path.join(data_root, "semantic_MRs_anon")
