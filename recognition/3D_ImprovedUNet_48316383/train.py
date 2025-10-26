@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 import torch.nn as nn
 import torch.optim as optim
-from modules import UNet3D
+from modules import UNet3D  # 确保导入的是标准 UNet3D
 from dataset import Prostate3DDataset
 
 def init_weights_he(m):
@@ -22,22 +22,78 @@ def init_weights_he(m):
 
 # --- Weighted Dice Loss for imbalanced classes ---
 class WeightedDiceLoss(nn.Module):
-    def __init__(self, smooth=1.0, class_weights=None):
+    def __init__(self, smooth=1.0, class_weights=None, weight_power=1.0):
         super(WeightedDiceLoss, self).__init__()
         self.smooth = smooth
         self.class_weights = class_weights
+        self.weight_power = weight_power  # 控制权重的强度
     
     def forward(self, pred, target):
         pred = torch.softmax(pred, dim=1)
+        
+        # 计算每个类别的 Dice
         intersection = (pred * target).sum(dim=(2, 3, 4))
         union = pred.sum(dim=(2, 3, 4)) + target.sum(dim=(2, 3, 4))
-        dice = (2. * intersection + self.smooth) / (union + self.smooth)
+        dice_per_class = (2. * intersection + self.smooth) / (union + self.smooth)
         
         if self.class_weights is not None:
             weights = self.class_weights.to(pred.device)
-            dice = dice * weights.unsqueeze(0)
+            # 使用 weight_power 来调整权重的影响
+            weights = weights ** self.weight_power
+            dice_per_class = dice_per_class * weights.unsqueeze(0)
         
-        return 1 - dice.mean()
+        # 打印每个类别的 Dice 值，方便监控
+        if not self.training:  # 在验证时打印
+            for c in range(len(dice_per_class[0])):
+                print(f"Class {c} Dice: {dice_per_class[0][c]:.4f}")
+        
+        return 1 - dice_per_class.mean()
+
+# --- Focal Dice Loss ---
+class FocalDiceLoss(nn.Module):
+    def __init__(self, alpha=1.0, gamma=2.0, dice_weight=1.0, focal_weight=1.0, smooth=1.0, class_weights=None):
+        super().__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+        self.dice_weight = dice_weight
+        self.focal_weight = focal_weight
+        self.smooth = smooth
+        self.class_weights = class_weights
+
+    def forward(self, pred, target):
+        # 确保 target 是 long 类型
+        target = target.long()
+        
+        # 首先计算 Dice Loss
+        pred_softmax = torch.softmax(pred, dim=1)
+        
+        # 创建 one-hot 编码
+        batch_size, num_classes, depth, height, width = pred_softmax.size()
+        target_one_hot = torch.zeros_like(pred_softmax)
+        
+        # 正确处理 target 的维度
+        target = target.view(batch_size, 1, depth, height, width)
+        target_one_hot.scatter_(1, target, 1)
+        
+        # Dice Loss
+        intersection = (pred_softmax * target_one_hot).sum(dim=(2,3,4))
+        union = pred_softmax.sum(dim=(2,3,4)) + target_one_hot.sum(dim=(2,3,4))
+        dice = (2. * intersection + self.smooth) / (union + self.smooth)
+        
+        if self.class_weights is not None:
+            dice = dice * self.class_weights.to(dice.device)
+        
+        dice_loss = 1 - dice.mean()
+
+        # Focal Loss
+        pt = (pred_softmax * target_one_hot).sum(dim=1)
+        focal_weight = self.alpha * (1 - pt) ** self.gamma
+        focal_loss = -torch.log(pt + 1e-8) * focal_weight
+        focal_loss = focal_loss.mean()
+
+        # 组合损失
+        total_loss = self.dice_weight * dice_loss + self.focal_weight * focal_loss
+        return total_loss
 
 # --- Dice Coefficient Metric ---
 def dice_coefficient(pred, target, num_classes):
@@ -63,15 +119,29 @@ from torch.amp import autocast, GradScaler  # use new amp API
 
 # --- Training Function (AMP, gradient accumulation, optional compile) ---
 def train_model(model, train_loader, val_loader, num_epochs=100, device='cuda', num_classes=6,
-                val_freq=1, grad_accum_steps=1):  # 改为 val_freq=1
-    # 调整 class weights 使其更温和
-    # 原始频率: [49.97%, 44.94%, 3.78%, 0.79%, 0.28%, 0.24%]
-    # 使用平方根倒数而非直接倒数，避免权重过大
-    class_weights = torch.FloatTensor([1.0, 1.05, 3.5, 8.0, 13.0, 15.0])
-    class_weights = class_weights / class_weights.sum() * num_classes
+                val_freq=1, grad_accum_steps=1):
+    # 修改初始化参数，使其与 DynamicWeightAdjuster 类定义匹配
+    weight_adjuster = DynamicWeightAdjuster(
+        initial_weights=train_loader.dataset.class_weights,
+        window_size=3,
+        target_dice=0.7,
+        min_improvement=0.01
+    )
     
-    criterion = WeightedDiceLoss(class_weights=class_weights)
-    optimizer = optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-5)  # 提高初始学习率
+    criterion = WeightedDiceLoss(
+        smooth=1.0,
+        class_weights=weight_adjuster.weights,
+        weight_power=1.0
+    )
+    
+    # 每个 epoch 打印类别权重的实际效果
+    def print_class_stats(outputs, labels):
+        with torch.no_grad():
+            dice_scores = dice_coefficient(outputs, labels, num_classes)
+            print(f"各类别 Dice: {[f'{d:.4f}' for d in dice_scores]}")
+    
+    # --- 其余训练代码保持不变 ---
+    optimizer = optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-5)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', patience=7, factor=0.5)
     
     # Create GradScaler in a backwards-compatible way and decide whether to use AMP
@@ -178,6 +248,19 @@ def train_model(model, train_loader, val_loader, num_epochs=100, device='cuda', 
             mean_dice = best_dice
             avg_dice_scores = np.zeros((num_classes,))
         
+        # 在验证后更新权重
+        if epoch % val_freq == 0:
+            # 更新历史记录
+            weight_adjuster.update(avg_dice_scores)
+            
+            # 调整权重
+            if epoch >= weight_adjuster.window_size:
+                new_weights = weight_adjuster.adjust_weights()
+                criterion.class_weights = new_weights.to(device)
+                print("\n权重更新:")
+                for c in range(num_classes):
+                    print(f"类别 {c}: {new_weights[c]:.4f}")
+        
         print(f"\nEpoch {epoch+1}/{num_epochs}:")
         if epoch % val_freq == 0:
             # 只有在真正运行了验证时才打印Val Loss
@@ -213,6 +296,63 @@ def train_model(model, train_loader, val_loader, num_epochs=100, device='cuda', 
             print(f"\n🎉 Target achieved! All classes have Dice ≥ 0.7")
             break
 
+# --- Dynamic Weight Adjuster ---
+class DynamicWeightAdjuster:
+    def __init__(self, initial_weights, window_size=3, 
+                 target_dice=0.7, min_improvement=0.01):
+        """
+        通用的动态权重调整器
+        Args:
+            initial_weights: 初始权重
+            window_size: 观察窗口大小
+            target_dice: 目标 Dice 分数
+            min_improvement: 最小期望改善
+        """
+        self.weights = initial_weights.clone()
+        self.history = {i: [] for i in range(len(initial_weights))}
+        self.window_size = window_size
+        self.target_dice = target_dice
+        self.min_improvement = min_improvement
+        
+    def update(self, dice_scores):
+        """更新每个类别的 Dice 分数历史"""
+        for i, dice in enumerate(dice_scores):
+            self.history[i].append(dice)
+            if len(self.history[i]) > self.window_size:
+                self.history[i].pop(0)
+    
+    def adjust_weights(self):
+        """根据性能动态调整权重"""
+        for i in range(len(self.weights)):
+            if len(self.history[i]) >= self.window_size:
+                # 计算最近几个 epoch 的改善程度
+                recent_scores = self.history[i][-self.window_size:]
+                improvements = [recent_scores[j+1] - recent_scores[j] 
+                              for j in range(len(recent_scores)-1)]
+                avg_improvement = sum(improvements) / len(improvements)
+                current_dice = recent_scores[-1]
+                
+                # 根据当前性能和改善程度调整权重
+                if current_dice < self.target_dice:
+                    # 性能越差，增幅越大
+                    gap = self.target_dice - current_dice
+                    if avg_improvement < self.min_improvement:
+                        increase_factor = 1.0 + gap
+                        self.weights[i] *= increase_factor
+                        print(f"类别 {i} - Dice: {current_dice:.4f}, "
+                              f"增加权重: {increase_factor:.2f}x")
+                elif current_dice > self.target_dice + 0.1:
+                    # 性能明显超过目标，适当降低权重
+                    self.weights[i] *= 0.9
+                    print(f"类别 {i} - Dice: {current_dice:.4f}, 降低权重")
+        
+        # 归一化权重
+        self.weights = self.weights / self.weights.mean()
+        # 限制权重范围，避免过大或过小
+        self.weights = torch.clamp(self.weights, min=0.1, max=5.0)
+        
+        return self.weights
+
 # --- Main ---
 if __name__ == "__main__":
     # 固定随机性（可重现） - 用于可重复性。若优先速度可禁用下面两行以允许 cudnn benchmark
@@ -228,93 +368,75 @@ if __name__ == "__main__":
 
     # Configuration
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    data_root = r"C:\Users\17561\Desktop\new 3710\data"
+    
+    # 添加缺失的配置参数
+    CONFIG = {
+        'num_classes': 6,
+        'target_size': (128, 128, 64),
+        'batch_size': 2,
+        'num_workers': 4,
+        'base_filters': 16,
+        'val_freq': 1,  # 每个epoch都验证
+        'grad_accum_steps': 1,  # 梯度累积步数
+        'use_preload': False,
+    }
+    
     print(f"Using device: {device}\n")
     
-    # Dataset root
-    data_root = r"C:\Users\17561\Desktop\new 3710\data"
-    num_classes = 6
+    # 创建数据集（只创建一次）
+    train_dataset = Prostate3DDataset(
+        data_root=data_root,
+        split='train',
+        num_classes=CONFIG['num_classes'],
+        target_size=CONFIG['target_size'],
+        preload=CONFIG['use_preload']
+    )
     
-    # 选择加载方式
-    USE_PRELOAD = False           # 按需加载，节省内存
-    target_size = (128, 128, 64)    # adjust if needed
-    batch_size = 2                  # if GPU allows; else reduce to 1
-    num_workers = 4
-    base_filters = 32               # try increasing if memory allows
+    val_dataset = Prostate3DDataset(
+        data_root=data_root,
+        split='val',
+        num_classes=CONFIG['num_classes'],
+        target_size=CONFIG['target_size'],
+        preload=CONFIG['use_preload']
+    )
     
-    # Performance-oriented DataLoader flags
-    dl_kwargs = dict(pin_memory=True, persistent_workers=True, prefetch_factor=2) if num_workers>0 else dict(pin_memory=True)
+    # 创建数据加载器
+    train_loader = DataLoader(
+        train_dataset, 
+        batch_size=CONFIG['batch_size'],
+        shuffle=True,
+        num_workers=CONFIG['num_workers'],
+    )
     
-    # Create datasets
-    if USE_PRELOAD:
-        print("Using PRELOAD mode (load_data_3D)")
-        train_dataset = Prostate3DDataset(data_root, split='train', num_classes=num_classes,
-                                         target_size=target_size, preload=True)
-        val_dataset = Prostate3DDataset(data_root, split='val', num_classes=num_classes,
-                                       target_size=target_size, preload=True)
-    else:
-        print("Using LAZY LOAD mode (on-demand)")
-        train_dataset = Prostate3DDataset(data_root, split='train', num_classes=num_classes,
-                                         target_size=target_size, preload=False)
-        val_dataset = Prostate3DDataset(data_root, split='val', num_classes=num_classes,
-                                       target_size=target_size, preload=False)
-    
-    # Create dataloaders (use smaller batch for val to reduce mem pressure)
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, 
-                             num_workers=num_workers, **dl_kwargs)
-    val_loader = DataLoader(val_dataset, batch_size=1, shuffle=False, 
-                           num_workers=max(1, num_workers//2), pin_memory=True)
-    
-    # Initialize model
-    model = UNet3D(in_channels=1, num_classes=num_classes, base_filters=base_filters).to(device)
+    val_loader = DataLoader(
 
-    # Try to compile model only if Triton is available (avoid runtime failure)
-    triton_ok = False
-    try:
-        import triton  # check if triton exists
-        triton_ok = True
-    except (ModuleNotFoundError, ImportError):
-        triton_ok = False
-
-    if triton_ok:
-        try:
-            model = torch.compile(model)
-            print("Model compiled with torch.compile()")
-        except Exception as e:
-            print("torch.compile() failed, continuing without compile. Error:", e)
-    else:
-        print("Triton not available — skipping torch.compile(). Install triton if you want compilation.")
-
-    # 显式初始化权重（He/Kaiming）
+        val_dataset,
+        batch_size=1,
+        shuffle=False,
+        num_workers=max(1, CONFIG['num_workers']//2),
+        pin_memory=True
+    )
+    
+    # 初始化模型
+    model = UNet3D(
+        in_channels=1, 
+        num_classes=CONFIG['num_classes'], 
+        base_filters=CONFIG['base_filters']
+    ).to(device)
     model.apply(init_weights_he)
-
-    print("Model initialized from scratch. No pretrained weights loaded.")
     
-    # Print model info
-    total_params = sum(p.numel() for p in model.parameters())
-    print(f"Total parameters: {total_params:,}\n")
+    print("Model initialized from scratch.")
+    print(f"Total parameters: {sum(p.numel() for p in model.parameters()):,}")
     
-    # Train with acceleration options
-    VAL_FREQ = 1  # 改为每轮都验证，便于调试
-    GRAD_ACCUM_STEPS = 1
-    
-    # 先用较小的模型和尺寸测试
-    target_size = (96, 96, 48)
-    base_filters = 24
-    batch_size = 2
-    
-    # --- Data Sanity Check ---
-    print("\n=== Data Sanity Check ===")
-    for batch_idx, (images, labels) in enumerate(train_loader):
-        print(f"Batch {batch_idx}:")
-        print(f"  Image shape: {images.shape}, range: [{images.min():.3f}, {images.max():.3f}]")
-        print(f"  Label shape: {labels.shape}")
-        # 检查每个类别的体素数
-        for c in range(num_classes):
-            count = (labels[:, c] > 0.5).sum().item()
-            print(f"  Class {c}: {count} voxels")
-        if batch_idx >= 2:  # 只检查前3个batch
-            break
-    print("=========================\n")
-
-    train_model(model, train_loader, val_loader, num_epochs=100, device=device, num_classes=num_classes,
-                val_freq=VAL_FREQ, grad_accum_steps=GRAD_ACCUM_STEPS)
+    # 开始训练
+    train_model(
+        model=model,
+        train_loader=train_loader,
+        val_loader=val_loader,
+        num_epochs=100,
+        device=device,
+        num_classes=CONFIG['num_classes'],
+        val_freq=CONFIG['val_freq'],
+        grad_accum_steps=CONFIG['grad_accum_steps']
+    )
