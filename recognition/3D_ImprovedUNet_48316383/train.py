@@ -8,6 +8,7 @@ import torch.nn as nn
 import torch.optim as optim
 from modules import UNet3D  # 确保导入的是标准 UNet3D
 from dataset import Prostate3DDataset
+import matplotlib.pyplot as plt
 
 def init_weights_he(m):
     if isinstance(m, (torch.nn.Conv3d, torch.nn.ConvTranspose3d)):
@@ -353,6 +354,61 @@ class DynamicWeightAdjuster:
         
         return self.weights
 
+def plot_class_weights(class_weights, save_path="class_weights.png"):
+    """
+    绘制类别权重图并保存为图片
+    Args:
+        class_weights (torch.Tensor): 类别权重
+        save_path (str): 保存路径
+    """
+    num_classes = len(class_weights)
+    plt.figure(figsize=(8, 6))
+    plt.bar(range(num_classes), class_weights.cpu().numpy(), color='skyblue')
+    plt.xlabel("Class Index")
+    plt.ylabel("Weight")
+    plt.title("Class Weights")
+    plt.xticks(range(num_classes))
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
+    plt.tight_layout()
+    plt.savefig(save_path)
+    plt.close()
+    print(f"Class weights plot saved to {save_path}")
+
+def plot_class_distribution(class_counts, save_path="class_distribution.png"):
+    """
+    绘制类别分布图并在柱状图上显示具体的体素数量
+    Args:
+        class_counts (torch.Tensor): 每个类别的体素数量
+        save_path (str): 保存路径
+    """
+    num_classes = len(class_counts)
+    counts = class_counts.cpu().numpy()  # 转为 NumPy 数组
+
+    plt.figure(figsize=(8, 6))
+    bars = plt.bar(range(num_classes), counts, color='skyblue')
+
+    # 在柱状图顶部显示具体的体素数量
+    for bar, count in zip(bars, counts):
+        plt.text(
+            bar.get_x() + bar.get_width() / 2,  # X 坐标
+            bar.get_height(),                  # Y 坐标（柱子高度）
+            f"{int(count):,}",                 # 显示的文本（体素数量，带千分位）
+            ha='center',                       # 水平居中
+            va='bottom',                       # 垂直方向在柱子顶部
+            fontsize=10,                       # 字体大小
+            color='black'                      # 字体颜色
+        )
+
+    plt.xlabel("Class Index")
+    plt.ylabel("Voxel Count")
+    plt.title("Class Distribution")
+    plt.xticks(range(num_classes))
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
+    plt.tight_layout()
+    plt.savefig(save_path)
+    plt.close()
+    print(f"Class distribution plot saved to {save_path}")
+
 # --- Main ---
 if __name__ == "__main__":
     # 固定随机性（可重现） - 用于可重复性。若优先速度可禁用下面两行以允许 cudnn benchmark
@@ -428,6 +484,17 @@ if __name__ == "__main__":
     
     print("Model initialized from scratch.")
     print(f"Total parameters: {sum(p.numel() for p in model.parameters()):,}")
+    
+    # 计算类别权重（只计算训练集的权重）
+    class_weights = train_dataset.class_weights
+    print("\n=== 类别权重分析 ===")
+    print(f"类别权重: {[f'{w:.4f}' for w in class_weights]}")
+
+    # 绘制类别分布图
+    plot_class_distribution(train_dataset.class_counts, save_path="class_distribution.png")
+
+    # 绘制权重图
+    plot_class_weights(class_weights, save_path="class_weights.png")
     
     # 开始训练
     train_model(
