@@ -7,8 +7,9 @@ from tqdm import tqdm
 import torch.nn as nn
 import torch.optim as optim
 from modules import UNet3D  # 确保导入的是标准 UNet3D
-from dataset import Prostate3DDataset
+from dataset import Prostate3DDataset, RandomAugmentation
 import matplotlib.pyplot as plt
+from config import CONFIG  # 导入配置
 
 def init_weights_he(m):
     if isinstance(m, (torch.nn.Conv3d, torch.nn.ConvTranspose3d)):
@@ -426,31 +427,25 @@ if __name__ == "__main__":
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     data_root = r"C:\Users\17561\Desktop\new 3710\data"
     
-    # 添加缺失的配置参数
-    CONFIG = {
-        'num_classes': 6,
-        'target_size': (128, 128, 64),
-        'batch_size': 2,
-        'num_workers': 4,
-        'base_filters': 16,
-        'val_freq': 1,  # 每个epoch都验证
-        'grad_accum_steps': 1,  # 梯度累积步数
-        'use_preload': False,
-    }
-    
+    # 使用 CONFIG 中的参数
     print(f"Using device: {device}\n")
     
-    # 创建数据集（只创建一次）
+    # 创建数据增强实例
+    augmentation = RandomAugmentation(flip_prob=0.5, noise_std=0.05, rotate_angle=15)
+
+    # 创建训练集，启用数据增强
     train_dataset = Prostate3DDataset(
-        data_root=data_root,
+        data_root=CONFIG['data_root'],
         split='train',
         num_classes=CONFIG['num_classes'],
         target_size=CONFIG['target_size'],
-        preload=CONFIG['use_preload']
+        preload=CONFIG['use_preload'],
+        transform=augmentation  # 启用数据增强
     )
     
+    # 验证集不需要数据增强
     val_dataset = Prostate3DDataset(
-        data_root=data_root,
+        data_root=CONFIG['data_root'],
         split='val',
         num_classes=CONFIG['num_classes'],
         target_size=CONFIG['target_size'],
@@ -466,11 +461,10 @@ if __name__ == "__main__":
     )
     
     val_loader = DataLoader(
-
         val_dataset,
         batch_size=1,
         shuffle=False,
-        num_workers=max(1, CONFIG['num_workers']//2),
+        num_workers=max(1, CONFIG['num_workers'] // 2),
         pin_memory=True
     )
     
