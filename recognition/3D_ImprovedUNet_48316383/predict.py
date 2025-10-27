@@ -105,8 +105,13 @@ if __name__ == "__main__":
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
 
-    # Load checkpoint
-    checkpoint_path = "best_model.pth"
+    # ============================================================
+    # 配置区域：修改这里来测试不同的模型
+    # ============================================================
+    # 可选: "best_model_10epochs.pth", "best_model_20epochs.pth", "best_model_100epochs.pth"
+    checkpoint_path = "C:\\Users\\17561\\Desktop\\new 3710\\best_model_100epochs.pth"  # 👈 修改这里切换模型
+    # ============================================================
+    
     if not os.path.exists(checkpoint_path):
         raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
     
@@ -246,5 +251,57 @@ if __name__ == "__main__":
             print(f"\n❌ REQUIREMENT NOT MET: Classes {failing_classes.tolist()} have Dice < 0.7")
         
         print("="*60)
+        
+        # Save test results to file for reporting
+        if trained_epochs != 'unknown':
+            result_filename = f"test_results_{trained_epochs}epochs.txt"
+        else:
+            result_filename = "test_results.txt"
+        
+        result_path = Path(result_filename)
+        with open(result_path, 'w', encoding='utf-8') as f:
+            f.write("="*60 + "\n")
+            f.write("TEST SET RESULTS (Final Evaluation)\n")
+            f.write("="*60 + "\n\n")
+            f.write(f"Model: {checkpoint_path}\n")
+            f.write(f"Trained Epochs: {trained_epochs}\n")
+            f.write(f"Number of Test Cases: {len(all_dice_scores)}\n")
+            f.write(f"Number of Classes: {num_classes}\n\n")
+            
+            f.write("-"*60 + "\n")
+            f.write("PER-CLASS DICE SCORES (Mean ± Std)\n")
+            f.write("-"*60 + "\n")
+            for c in range(num_classes):
+                f.write(f"Class {c}: {mean_dice_per_class[c]:.4f} ± {std_dice_per_class[c]:.4f}\n")
+            
+            f.write("\n" + "-"*60 + "\n")
+            f.write("SUMMARY METRICS\n")
+            f.write("-"*60 + "\n")
+            f.write(f"Mean Dice (excluding background): {mean_dice_overall:.4f}\n")
+            f.write(f"Minimum Dice (excluding background): {min_dice_non_bg:.4f}\n")
+            
+            f.write("\n" + "-"*60 + "\n")
+            f.write("REQUIREMENT CHECK\n")
+            f.write("-"*60 + "\n")
+            f.write("Project Requirement: All classes Dice ≥ 0.7\n\n")
+            
+            if np.all(mean_dice_per_class[1:] >= 0.7):
+                f.write("✅ SUCCESS: All classes meet requirement (Dice ≥ 0.7)\n")
+            else:
+                failing_classes = np.where(mean_dice_per_class[1:] < 0.7)[0] + 1
+                f.write(f"❌ REQUIREMENT NOT MET\n")
+                f.write(f"Failing classes: {failing_classes.tolist()}\n")
+            
+            f.write("\n" + "="*60 + "\n")
+            f.write("DETAILED PER-CASE RESULTS\n")
+            f.write("="*60 + "\n\n")
+            
+            for idx, (img_path, dice_scores) in enumerate(zip(test_images, all_dice_scores)):
+                img_name = os.path.basename(img_path)
+                f.write(f"Case {idx+1}: {img_name}\n")
+                f.write(f"  Dice scores: {[f'{d:.4f}' for d in dice_scores]}\n")
+                f.write(f"  Mean (excl. bg): {np.mean(dice_scores[1:]):.4f}\n\n")
+        
+        print(f"\n📄 Test results saved to: {result_path.absolute()}")
     
     print(f"\nAll predictions saved to {output_dir.absolute()}")

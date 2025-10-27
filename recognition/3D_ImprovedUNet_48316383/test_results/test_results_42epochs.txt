@@ -1,0 +1,168 @@
+============================================================
+TEST SET RESULTS (Final Evaluation)
+============================================================
+
+Model: C:\Users\17561\Desktop\new 3710\best_model_100epochs.pth
+Trained Epochs: 42
+Number of Test Cases: 33
+Number of Classes: 6
+
+------------------------------------------------------------
+PER-CLASS DICE SCORES (Mean ± Std)
+------------------------------------------------------------
+Class 0: 0.9925 ± 0.0019
+Class 1: 0.9749 ± 0.0036
+Class 2: 0.8920 ± 0.0110
+Class 3: 0.9002 ± 0.0384
+Class 4: 0.8104 ± 0.0455
+Class 5: 0.8197 ± 0.0566
+
+------------------------------------------------------------
+SUMMARY METRICS
+------------------------------------------------------------
+Mean Dice (excluding background): 0.8794
+Minimum Dice (excluding background): 0.8104
+
+------------------------------------------------------------
+REQUIREMENT CHECK
+------------------------------------------------------------
+Project Requirement: All classes Dice ≥ 0.7
+
+✅ SUCCESS: All classes meet requirement (Dice ≥ 0.7)
+
+============================================================
+DETAILED PER-CASE RESULTS
+============================================================
+
+Case 1: Case_040_Week5_LFOV.nii.gz
+  Dice scores: ['0.9934', '0.9755', '0.8876', '0.9203', '0.8050', '0.8232']
+  Mean (excl. bg): 0.8823
+
+Case 2: Case_031_Week3_LFOV.nii.gz
+  Dice scores: ['0.9931', '0.9745', '0.9105', '0.9257', '0.8077', '0.7424']
+  Mean (excl. bg): 0.8722
+
+Case 3: Case_015_Week0_LFOV.nii.gz
+  Dice scores: ['0.9877', '0.9762', '0.9012', '0.9181', '0.8434', '0.8930']
+  Mean (excl. bg): 0.9064
+
+Case 4: Case_013_Week6_LFOV.nii.gz
+  Dice scores: ['0.9946', '0.9732', '0.8833', '0.9506', '0.7818', '0.8094']
+  Mean (excl. bg): 0.8797
+
+Case 5: Case_018_Week6_LFOV.nii.gz
+  Dice scores: ['0.9950', '0.9727', '0.8859', '0.8540', '0.7151', '0.8757']
+  Mean (excl. bg): 0.8607
+
+Case 6: Case_010_Week3_LFOV.nii.gz
+  Dice scores: ['0.9922', '0.9725', '0.8705', '0.9133', '0.8855', '0.8873']
+  Mean (excl. bg): 0.9058
+
+Case 7: Case_014_Week7_LFOV.nii.gz
+  Dice scores: ['0.9921', '0.9775', '0.9046', '0.9014', '0.8650', '0.7796']
+  Mean (excl. bg): 0.8856
+
+Case 8: Case_030_Week0_LFOV.nii.gz
+  Dice scores: ['0.9927', '0.9793', '0.8890', '0.9106', '0.8001', '0.8280']
+  Mean (excl. bg): 0.8814
+
+Case 9: Case_040_Week1_LFOV.nii.gz
+  Dice scores: ['0.9945', '0.9766', '0.8905', '0.9376', '0.8035', '0.7783']
+  Mean (excl. bg): 0.8773
+
+Case 10: Case_025_Week2_LFOV.nii.gz
+  Dice scores: ['0.9934', '0.9777', '0.9009', '0.8422', '0.8255', '0.7825']
+  Mean (excl. bg): 0.8658
+
+Case 11: Case_012_Week3_LFOV.nii.gz
+  Dice scores: ['0.9938', '0.9756', '0.8890', '0.8323', '0.8642', '0.8589']
+  Mean (excl. bg): 0.8840
+
+Case 12: Case_029_Week5_LFOV.nii.gz
+  Dice scores: ['0.9927', '0.9781', '0.9056', '0.9329', '0.8256', '0.6275']
+  Mean (excl. bg): 0.8539
+
+Case 13: Case_039_Week5_LFOV.nii.gz
+  Dice scores: ['0.9917', '0.9767', '0.8923', '0.8530', '0.8669', '0.8261']
+  Mean (excl. bg): 0.8830
+
+Case 14: Case_004_Week1_LFOV.nii.gz
+  Dice scores: ['0.9870', '0.9734', '0.8816', '0.8890', '0.8466', '0.8836']
+  Mean (excl. bg): 0.8949
+
+Case 15: Case_014_Week2_LFOV.nii.gz
+  Dice scores: ['0.9933', '0.9779', '0.8993', '0.8809', '0.7805', '0.6897']
+  Mean (excl. bg): 0.8457
+
+Case 16: Case_027_Week6_LFOV.nii.gz
+  Dice scores: ['0.9929', '0.9755', '0.9121', '0.9405', '0.8187', '0.8047']
+  Mean (excl. bg): 0.8903
+
+Case 17: Case_025_Week3_LFOV.nii.gz
+  Dice scores: ['0.9933', '0.9777', '0.9005', '0.9377', '0.8445', '0.8207']
+  Mean (excl. bg): 0.8962
+
+Case 18: Case_028_Week0_LFOV.nii.gz
+  Dice scores: ['0.9919', '0.9748', '0.8926', '0.7850', '0.7456', '0.8398']
+  Mean (excl. bg): 0.8476
+
+Case 19: Case_021_Week1_LFOV.nii.gz
+  Dice scores: ['0.9948', '0.9680', '0.8741', '0.9401', '0.6759', '0.8092']
+  Mean (excl. bg): 0.8535
+
+Case 20: Case_020_Week1_LFOV.nii.gz
+  Dice scores: ['0.9937', '0.9763', '0.9031', '0.8871', '0.8170', '0.8697']
+  Mean (excl. bg): 0.8907
+
+Case 21: Case_022_Week6_LFOV.nii.gz
+  Dice scores: ['0.9913', '0.9752', '0.8788', '0.8914', '0.8551', '0.8225']
+  Mean (excl. bg): 0.8846
+
+Case 22: Case_018_Week5_LFOV.nii.gz
+  Dice scores: ['0.9949', '0.9711', '0.8775', '0.8791', '0.8133', '0.8559']
+  Mean (excl. bg): 0.8794
+
+Case 23: Case_017_Week0_LFOV.nii.gz
+  Dice scores: ['0.9934', '0.9691', '0.8841', '0.9313', '0.7958', '0.7985']
+  Mean (excl. bg): 0.8758
+
+Case 24: Case_024_Week2_LFOV.nii.gz
+  Dice scores: ['0.9911', '0.9782', '0.8941', '0.8894', '0.8427', '0.8773']
+  Mean (excl. bg): 0.8963
+
+Case 25: Case_042_Week0_LFOV.nii.gz
+  Dice scores: ['0.9908', '0.9754', '0.8839', '0.8452', '0.8017', '0.8582']
+  Mean (excl. bg): 0.8729
+
+Case 26: Case_010_Week2_LFOV.nii.gz
+  Dice scores: ['0.9926', '0.9780', '0.9030', '0.8674', '0.8544', '0.8628']
+  Mean (excl. bg): 0.8931
+
+Case 27: Case_033_Week6_LFOV.nii.gz
+  Dice scores: ['0.9918', '0.9807', '0.9053', '0.8979', '0.7830', '0.8477']
+  Mean (excl. bg): 0.8829
+
+Case 28: Case_016_Week5_LFOV.nii.gz
+  Dice scores: ['0.9917', '0.9805', '0.8891', '0.9014', '0.8264', '0.8147']
+  Mean (excl. bg): 0.8824
+
+Case 29: Case_021_Week4_LFOV.nii.gz
+  Dice scores: ['0.9948', '0.9642', '0.8756', '0.9422', '0.7504', '0.7806']
+  Mean (excl. bg): 0.8626
+
+Case 30: Case_006_Week1_LFOV.nii.gz
+  Dice scores: ['0.9929', '0.9732', '0.8916', '0.9103', '0.7615', '0.8370']
+  Mean (excl. bg): 0.8747
+
+Case 31: Case_019_Week2_LFOV.nii.gz
+  Dice scores: ['0.9884', '0.9728', '0.8870', '0.9237', '0.7822', '0.8774']
+  Mean (excl. bg): 0.8886
+
+Case 32: Case_032_Week5_LFOV.nii.gz
+  Dice scores: ['0.9923', '0.9742', '0.9079', '0.9304', '0.8654', '0.8361']
+  Mean (excl. bg): 0.9028
+
+Case 33: Case_021_Week0_LFOV.nii.gz
+  Dice scores: ['0.9928', '0.9682', '0.8830', '0.9461', '0.7949', '0.7520']
+  Mean (excl. bg): 0.8688
+

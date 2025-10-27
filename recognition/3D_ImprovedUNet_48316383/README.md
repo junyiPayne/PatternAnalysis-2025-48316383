@@ -39,7 +39,7 @@ This project implements an **Improved 3D UNet** for multi-class segmentation of 
 **Objective**: Achieve Dice coefficient ≥ 0.7 for all anatomical structures on test set  
 **Input**: Single-channel 3D MRI volumes (resized to 128×128×64)  
 **Output**: 6-class semantic segmentation masks  
-**Achievement**: ✓ Mean Dice of 0.8694 (20 epochs) and 0.8875 (100 epochs) on test set - all classes exceed 0.7 requirement
+**Achievement**: ✅ Mean Dice of 0.8646 (20 epochs) and 0.8794 (42 epochs) on test set - 20+ epoch models meet all requirements
 
 **Three Core Technical Innovations:**
 
@@ -999,9 +999,9 @@ where $P$ is the prediction and $G$ is the ground truth.
 
 **Project Requirement:** Dice ≥ 0.7 for all anatomical structures (excluding background) on the test set
 
-**Test Set:** 32 volumes (15% of dataset, never seen during training)
+**Test Set:** 33 volumes (15% of dataset, never seen during training)
 
-**Achievement:** ✓ All configurations meet the requirement with all classes achieving Dice ≥ 0.7 on test set
+**Achievement:** ✅ Models with 20+ epochs meet the requirement (all classes Dice ≥ 0.7 on test set)
 
 ---
 
@@ -1009,35 +1009,35 @@ where $P$ is the prediction and $G$ is the ground truth.
 
 #### Performance Summary (Test Set)
 
-| Class | Structure | Dice Score | Target Met |
-|-------|-----------|------------|------------|
-| 0 | Background | 0.9930 | ✓ |
-| 1 | Prostate | 0.9697 | ✓ |
-| 2 | Bladder | 0.8121 | ✓ |
-| 3 | Rectum | 0.8480 | ✓ |
-| 4 | Femur Left | 0.7203 | ✓ |
-| 5 | Femur Right | 0.7300 | ✓ |
+| Class | Structure | Dice Score | Standard Deviation | Target Met |
+|-------|-----------|------------|-------------------|------------|
+| 0 | Background | 0.9901 | ±0.0051 | ✓ |
+| 1 | Prostate | 0.9635 | ±0.0075 | ✓ |
+| 2 | Bladder | 0.8096 | ±0.0251 | ✓ |
+| 3 | Rectum | 0.8627 | ±0.0517 | ✓ |
+| 4 | Femur Left | 0.6799 | ±0.0858 | ❌ |
+| 5 | Femur Right | 0.7334 | ±0.1082 | ✓ |
 
 **Overall Metrics:**
-- **Mean Dice (excluding background)**: 0.8160
-- **Worst-K Dice (K=2)**: 0.7203
-- **✓ All classes meet requirement**: Dice ≥ 0.7 on test set
+- **Test cases evaluated**: 33 volumes
+- **Mean Dice (excluding background)**: 0.8098
+- **Minimum Dice (excluding background)**: 0.6799
+- **❌ Requirement NOT met**: Class 4 (Femur Left) below 0.7 threshold
 
 **Training Progress Analysis:**
 - **Training completed**: All 10 epochs executed
 - **Convergence status**: Early-stage convergence, still improving
 - **Final training loss**: 0.8508
-- **Final test loss**: 0.9249
+- **Final validation loss**: 0.9249
 - **Training Dice**: 0.8561
-- **Test Dice**: 0.8160
-- **Generalization gap**: 0.0401 (moderate, expected for short training)
+- **Validation Dice**: 0.8160
 
 **Key Observations:**
-- ✓ **All classes exceed 0.7 Dice requirement on test set** in just 10 epochs
-- ✓ **Fast validation**: Achieves project requirement in 1.2 hours
-- ⚠ **Femurs challenging**: Left femur (0.7203) and right femur (0.7300) just above threshold
-- **Room for improvement**: Test loss still decreasing, not yet converged
-- **Efficient baseline**: Demonstrates model capability with minimal compute time
+- ❌ **Femur Left (Class 4) fails requirement**: Dice = 0.6799 (below 0.7 threshold)
+- ✓ **5 out of 6 classes meet requirement**: Mean Dice 0.8098 excluding background
+- ⚠ **Insufficient training**: Femur structures require more epochs to converge
+- **High variance on femurs**: Std 0.0858 (left) and 0.1082 (right) indicate instability
+- **Room for improvement**: Extended training essential for challenging bone structures
 
 #### Training Summary
 
@@ -1046,17 +1046,17 @@ where $P$ is the prediction and $G$ is the ground truth.
 **Training Details:**
 - **Training date**: October 28, 2025, 04:26
 - **Epochs completed**: 10/10 (full training)
-- **Best test Dice**: 0.8160 (Epoch 10)
+- **Mean test Dice**: 0.8098 (excluding background)
 - **Training time**: ~1.2 hours (RTX 3080)
 - **Learning rate decay**: Exponential (γ=0.985)
-- **Optimization**: Continuous improvement throughout all 10 epochs
+- **Test set**: 33 volumes
 
 **Analysis:**
-The 10-epoch training serves as a **rapid prototyping baseline**, achieving the minimum requirement (Dice ≥ 0.7 on test set) for all anatomical structures with minimal computational cost. The consistent improvement across all epochs indicates the model has not yet converged, suggesting that extended training (20+ epochs) would yield better performance. This configuration is ideal for:
-- Quick model validation and debugging
-- Hyperparameter tuning experiments
-- Resource-constrained environments
-- Proof-of-concept demonstrations
+The 10-epoch training demonstrates **early-stage learning** but **fails to meet project requirements** due to insufficient convergence on challenging bone structures (Femur Left: 0.6799). While 5 out of 6 classes achieve good performance (mean 0.8098), the high variance on femoral structures (±0.0858 to ±0.1082) indicates the model needs more training to stabilize. This configuration reveals that:
+- ❌ **Not suitable for production**: Does not meet Dice ≥ 0.7 requirement
+- ✓ **Useful for debugging**: Quick validation of pipeline and data loading
+- **Requires extended training**: 20+ epochs essential for femoral segmentation
+- **Early stopping needed**: High variance suggests optimization not yet stable
 
 #### Segmentation Examples
 
@@ -1072,35 +1072,36 @@ The 10-epoch training serves as a **rapid prototyping baseline**, achieving the 
 
 #### Performance Summary (Test Set)
 
-| Class | Structure | Dice Score | Target Met |
-|-------|-----------|------------|------------|
-| 0 | Background | 0.9978 | ✓ |
-| 1 | Prostate | 0.9827 | ✓ |
-| 2 | Bladder | 0.8815 | ✓ |
-| 3 | Rectum | 0.8917 | ✓ |
-| 4 | Femur Left | 0.7980 | ✓ |
-| 5 | Femur Right | 0.7932 | ✓ |
+| Class | Structure | Dice Score | Standard Deviation | Target Met |
+|-------|-----------|------------|-------------------|------------|
+| 0 | Background | 0.9921 | ±0.0018 | ✓ |
+| 1 | Prostate | 0.9717 | ±0.0051 | ✓ |
+| 2 | Bladder | 0.8712 | ±0.0122 | ✓ |
+| 3 | Rectum | 0.8940 | ±0.0402 | ✓ |
+| 4 | Femur Left | 0.7764 | ±0.0692 | ✓ |
+| 5 | Femur Right | 0.8096 | ±0.0683 | ✓ |
 
 **Overall Metrics:**
-- **Mean Dice (excluding background)**: 0.8694
-- **Worst-K Dice (K=2)**: 0.7932
-- **✓ All classes meet requirement**: Dice ≥ 0.7 on test set
+- **Test cases evaluated**: 33 volumes
+- **Mean Dice (excluding background)**: 0.8646
+- **Minimum Dice (excluding background)**: 0.7764
+- **✅ All classes meet requirement**: Dice ≥ 0.7 on test set
 
 **Training Progress Analysis:**
 - **Training completed**: All 20 epochs executed
 - **Convergence**: Steady improvement throughout training
 - **Final training loss**: 0.5479
-- **Final test loss**: 0.5584
+- **Final validation loss**: 0.5584
 - **Training Dice**: 0.8979
-- **Test Dice**: 0.8694
-- **Generalization gap**: 0.0285 (excellent, minimal overfitting)
+- **Validation Dice**: 0.8694
 
 **Key Observations:**
-- ✓ **All anatomical structures significantly exceed the 0.7 Dice requirement on test set**
-- Background and Prostate show excellent segmentation (>0.98 Dice)
-- Femurs are the most challenging classes but still achieve >0.79 Dice
-- Model demonstrates strong generalization with low train-test gap
-- No early stopping triggered, suggesting stable training
+- ✅ **All anatomical structures meet the 0.7 Dice requirement on test set**
+- **Excellent performance**: Mean Dice 0.8646 (6.8% improvement over 10 epochs)
+- **Femur structures converged**: Left femur improved from 0.6799→0.7764 (+14.2%)
+- **Low variance**: Standard deviations reduced significantly (e.g., femur right: 0.1082→0.0683)
+- **Stable predictions**: Consistent performance across 33 test cases
+- **No early stopping**: All 20 epochs utilized, indicating stable optimization
 
 #### Training Summary
 
@@ -1109,10 +1110,19 @@ The 10-epoch training serves as a **rapid prototyping baseline**, achieving the 
 **Training Details:**
 - **Training date**: October 28, 2025, 02:45
 - **Epochs completed**: 20/20 (full training)
-- **Best test Dice**: 0.8694 (Epoch 20)
+- **Mean test Dice**: 0.8646 (excluding background)
 - **Training time**: ~2.5 hours (RTX 3080)
 - **Learning rate decay**: Exponential (γ=0.985)
-- **Optimization**: Stable convergence, no oscillations
+- **Test set**: 33 volumes
+
+**Analysis:**
+The 20-epoch training represents the **recommended production baseline**, successfully meeting all project requirements with all classes achieving Dice ≥ 0.7 on the test set. Key achievements include:
+- ✅ **Meets all requirements**: Every anatomical class above 0.7 threshold
+- ✅ **Significant improvement**: +6.8% mean Dice over 10 epochs (0.8098→0.8646)
+- ✅ **Femur structures stabilized**: Left femur +14.2%, right femur +10.4%
+- ✅ **Reduced variance**: More consistent predictions (femur std reduced ~37%)
+- ✅ **Excellent balance**: Good performance with reasonable training time (2.5h)
+- **Best time-to-accuracy ratio**: Optimal choice for most applications
 
 #### Segmentation Examples
 
@@ -1124,48 +1134,41 @@ The 10-epoch training serves as a **rapid prototyping baseline**, achieving the 
 
 ---
 
-### Training Results (100 Epochs)
+### Training Results (42 Epochs - Early Stopped from 100)
 
 #### Performance Summary (Test Set)
 
-| Class | Structure | Dice Score | Target Met |
-|-------|-----------|------------|------------|
-| 0 | Background | 0.9972 | ✓ |
-| 1 | Prostate | 0.9846 | ✓ |
-| 2 | Bladder | 0.9023 | ✓ |
-| 3 | Rectum | 0.9057 | ✓ |
-| 4 | Femur Left | 0.8429 | ✓ |
-| 5 | Femur Right | 0.8019 | ✓ |
+| Class | Structure | Dice Score | Standard Deviation | Target Met |
+|-------|-----------|------------|-------------------|------------|
+| 0 | Background | 0.9925 | ±0.0019 | ✓ |
+| 1 | Prostate | 0.9749 | ±0.0036 | ✓ |
+| 2 | Bladder | 0.8920 | ±0.0110 | ✓ |
+| 3 | Rectum | 0.9002 | ±0.0384 | ✓ |
+| 4 | Femur Left | 0.8104 | ±0.0455 | ✓ |
+| 5 | Femur Right | 0.8197 | ±0.0566 | ✓ |
 
 **Overall Metrics:**
-- **Mean Dice (excluding background)**: 0.8875
-- **Worst-K Dice (K=2)**: 0.8019
-- **Best Worst-K Dice**: 0.8277 (Epoch 42)
-- **✓ All classes meet requirement**: Dice ≥ 0.7 on test set
+- **Test cases evaluated**: 33 volumes
+- **Mean Dice (excluding background)**: 0.8794
+- **Minimum Dice (excluding background)**: 0.8104
+- **✅ All classes meet requirement**: Dice ≥ 0.7 on test set
 
 **Training Progress Analysis:**
-- **Training stopped**: Early stopped at epoch 44 (out of 100 max)
+- **Training stopped**: Early stopped at epoch 42 (out of 100 max)
 - **Early stopping trigger**: No improvement in worst-K Dice for 10 epochs
-- **Best epoch**: Epoch 42 (Best Worst-K Dice: 0.8277)
+- **Best epoch**: Epoch 42 (model saved at this point)
 - **Final training loss**: 0.3846
-- **Final test loss**: 0.5108
+- **Final validation loss**: 0.5108
 - **Training Dice**: 0.9308
-- **Test Dice**: 0.8875
-- **Generalization gap**: 0.0433 (slightly larger than 20 epochs, but still acceptable)
+- **Validation Dice**: 0.8875
 
 **Key Observations:**
-- ✓ **All classes significantly exceed 0.7 Dice requirement on test set**
-- **Improved over 20 epochs**: +0.0181 mean Dice, +0.0087 worst-K Dice
-- **Small organ improvement**: Bladder (+0.0208), Rectum (+0.0140)
-- **Femur performance**: Slightly reduced compared to 20 epochs
-- **Early stopping effectiveness**: Prevented overfitting after epoch 42
-- **Trade-off**: Longer training improves average performance but may sacrifice consistency on hardest classes
-
-**Comparison with 20 Epochs:**
-- Better overall accuracy (0.8875 vs 0.8694)
-- Better performance on small organs (bladder, rectum)
-- Slightly worse on femurs (potential overfitting on bone structures)
-- Longer training time (4+ hours vs 2.5 hours)
+- ✅ **All classes significantly exceed 0.7 Dice requirement on test set**
+- **Best overall performance**: Mean Dice 0.8794 (+1.7% over 20 epochs)
+- **Femur structures optimized**: Left femur 0.8104 (+4.4% vs 20 epochs), Right femur 0.8197 (+1.2%)
+- **Small organ improvement**: Bladder 0.8920 (+2.4%), Rectum 0.9002 (+0.7%)
+- **Lowest variance**: Most stable predictions across all configurations
+- **Early stopping effectiveness**: Prevented overfitting, optimal convergence at epoch 42
 
 #### Training Summary
 
@@ -1173,12 +1176,22 @@ The 10-epoch training serves as a **rapid prototyping baseline**, achieving the 
 
 **Training Details:**
 - **Training date**: October 28, 2025, 03:16
-- **Epochs completed**: 44/100 (early stopped)
-- **Best test Dice**: 0.8922 (Epoch 41)
-- **Best worst-K Dice**: 0.8277 (Epoch 42)
+- **Epochs completed**: 42/100 (early stopped at optimal point)
+- **Mean test Dice**: 0.8794 (excluding background)
 - **Training time**: ~4 hours (RTX 3080)
 - **Learning rate decay**: Exponential (γ=0.985)
-- **Early stopping**: Patience=10, triggered at epoch 44
+- **Test set**: 33 volumes
+- **Early stopping**: Patience=10, triggered after epoch 42
+
+**Analysis:**
+The extended training configuration represents the **highest accuracy option**, achieving optimal performance through early stopping at epoch 42. Key characteristics:
+- ✅ **Best overall accuracy**: +1.7% mean Dice over 20 epochs (0.8646→0.8794)
+- ✅ **All requirements exceeded**: Every class significantly above 0.7 threshold
+- ✅ **Femur optimization**: Left femur 0.8104 (+4.4%), right femur 0.8197 (+1.2%)
+- ✅ **Small organ refinement**: Bladder 0.8920, Rectum 0.9002 (highest scores)
+- ✅ **Most stable predictions**: Lowest standard deviations across all classes
+- **Optimal convergence**: Early stopping prevented overfitting, saved best model
+- **Use case**: Medical diagnosis, research baselines, maximum accuracy requirements
 
 #### Segmentation Examples
 
@@ -1192,19 +1205,21 @@ The 10-epoch training serves as a **rapid prototyping baseline**, achieving the 
 
 ### Performance Comparison Across Epochs
 
-| Metric | 10 Epochs | 20 Epochs | 100 Epochs (44 actual) | Improvement (10→100) |
-|--------|-----------|-----------|------------------------|----------------------|
-| **Mean Dice** | **0.8160** | **0.8694** | **0.8875** | **+8.8%** |
-| Background | 0.9930 | 0.9978 | 0.9972 | +0.4% |
-| Prostate | 0.9697 | 0.9827 | 0.9846 | +1.5% |
-| Bladder | 0.8121 | 0.8815 | 0.9023 | **+11.1%** |
-| Rectum | 0.8480 | 0.8917 | 0.9057 | **+6.8%** |
-| Femur Left | 0.7203 | 0.7980 | 0.8429 | **+17.0%** |
-| Femur Right | 0.7300 | 0.7932 | 0.8019 | **+9.8%** |
-| **Worst-K Dice** | **0.7203** | **0.7932** | **0.8019** | **+11.3%** |
-| **Training Time** | **~1.2h** | **2.5h** | **~4h** | - |
-| **Epochs Run** | 10/10 | 20/20 | 44/100 | - |
-| **Early Stopped** | No | No | Yes (Epoch 44) | - |
+| Metric | 10 Epochs | 20 Epochs | 42 Epochs (100 max) | Improvement (10→42) |
+|--------|-----------|-----------|---------------------|---------------------|
+| **Mean Dice** | **0.8098** | **0.8646** | **0.8794** | **+8.6%** |
+| Background | 0.9901 | 0.9921 | 0.9925 | +0.2% |
+| Prostate | 0.9635 | 0.9717 | 0.9749 | +1.2% |
+| Bladder | 0.8096 | 0.8712 | 0.8920 | **+10.2%** |
+| Rectum | 0.8627 | 0.8940 | 0.9002 | **+4.3%** |
+| Femur Left | 0.6799 | 0.7764 | 0.8104 | **+19.2%** |
+| Femur Right | 0.7334 | 0.8096 | 0.8197 | **+11.8%** |
+| **Min Dice** | **0.6799** | **0.7764** | **0.8104** | **+19.2%** |
+| **Test Cases** | 33 | 33 | 33 | - |
+| **Training Time** | **~1.2h** | **~2.5h** | **~4h** | - |
+| **Epochs Run** | 10/10 | 20/20 | 42/100 | - |
+| **Early Stopped** | No | No | Yes (Epoch 42) | - |
+| **Meets Requirement** | ❌ | ✅ | ✅ | - |
 
 **Visualized Comparison (Same Case Across Epochs):**
 
@@ -1252,61 +1267,56 @@ The 10-epoch training serves as a **rapid prototyping baseline**, achieving the 
 
 **Analysis:**
 
-**10 Epochs (Baseline - Rapid Prototyping):**
-- ✓ **Fast validation**: All classes exceed 0.7 Dice requirement on test set in just 1.2 hours
-- ✓ **Efficient baseline**: Achieves 91.9% of final performance (10→100) with only 30% of training time
-- ⚠ **Femurs challenging**: Left/right femurs barely meet requirement (0.7203, 0.7300)
-- ⚠ **Still improving**: Test loss decreasing, not yet converged
-- **Use case**: Hyperparameter tuning, debugging, proof-of-concept
+**10 Epochs (Baseline - Does NOT Meet Requirements):**
+- ❌ **Fails project requirement**: Femur Left (0.6799) below 0.7 threshold
+- **High variance**: Femur std ±0.0858 to ±0.1082 indicates unstable learning
+- **Incomplete convergence**: Only 5/6 classes meet requirement
+- **Fast training**: 1.2 hours, but insufficient for production use
+- **Use case**: Debugging, pipeline validation, not for deployment
 
-**20 Epochs (Production Baseline - Recommended):**
-- ✓ **All classes exceed 0.7 Dice requirement on test set** with comfortable margin
-- ✓ Excellent results achieved without early stopping
-- ✓ **Best time-to-performance ratio**: 96.7% of 100-epoch performance in 62.5% of training time
-- ✓ Fast training time (2.5 hours)
-- ✓ Good balance between performance and efficiency
-- ✓ Minimal overfitting (train-test gap: 0.0285)
-- **Use case**: Standard production deployments, time-sensitive projects
+**20 Epochs (Production Baseline - ✅ Recommended):**
+- ✅ **All classes meet 0.7 requirement on test set**
+- ✅ **Significant improvement**: +6.8% mean Dice over 10 epochs (0.8098→0.8646)
+- ✅ **Femurs stabilized**: Left +14.2%, right +10.4% vs 10 epochs
+- ✅ **Reduced variance**: Femur std reduced 20-37%
+- ✅ **Best time-to-performance ratio**: Meets all requirements in 2.5 hours
+- **Use case**: Standard production deployments, optimal balance of speed and accuracy
 
-**100 Epochs (High Accuracy - Best Quality):**
-- ✓ **Highest overall accuracy on test set**: +8.8% mean Dice vs 10 epochs, +2.1% vs 20 epochs
-- ✓ **All classes significantly exceed 0.7 Dice requirement**
-- ✓ **Significant improvement on challenging classes**:
-  * Femur Left: +17.0% (0.7203 → 0.8429)
-  * Worst-K Dice: +11.3% (0.7203 → 0.8019)
-  * Bladder: +11.1% (0.8121 → 0.9023)
-- ✓ **Small organ refinement**: Bladder (+11.1%), rectum (+6.8%) particularly benefit
-- ✓ Early stopping prevented overfitting (stopped at epoch 44)
-- ⚠ Slightly larger train-test gap (0.0433 vs 0.0285 for 20 epochs)
-- ⚠ Diminishing returns: 2.1% improvement requires 60% more training time vs 20 epochs
+**42 Epochs (High Accuracy - Maximum Performance):**
+- ✅ **Highest overall accuracy on test set**: Mean Dice 0.8794
+- ✅ **All classes significantly exceed requirement**: Minimum Dice 0.8104 (+15.7% above threshold)
+- ✅ **Best femur performance**: Left 0.8104 (+19.2% vs 10 epochs), right 0.8197 (+11.8%)
+- ✅ **Most stable predictions**: Lowest standard deviations (femur left ±0.0455, -47% vs 10 epochs)
+- ✅ **Optimal early stopping**: Converged at epoch 42, prevented overfitting
+- **Diminishing returns**: +1.7% improvement over 20 epochs requires +60% more time
 - **Use case**: Accuracy-critical applications, medical diagnosis, research baselines
 
 **Key Findings:**
 
-1. **Progressive Improvement**: Visual comparison shows clear quality improvement from 10→20→100 epochs
-   - 10 epochs: Rough boundaries, femurs barely segmented
-   - 20 epochs: Cleaner boundaries, good overall shape
-   - 100 epochs: Refined edges, excellent small organ segmentation
+1. **Minimum Training Requirement**: 
+   - **10 epochs insufficient**: Fails on challenging bone structures (femur left)
+   - **20 epochs minimum**: First configuration to meet all requirements
+   - **42 epochs optimal**: Best accuracy with early stopping
 
-2. **Diminishing Returns Analysis**:
-   - 10→20 epochs: +6.5% mean Dice improvement (53 percentage points per hour)
-   - 20→100 epochs: +2.1% mean Dice improvement (14 percentage points per hour)
-   - **Efficiency ratio**: Early training is 3.8× more efficient per hour
+2. **Class-Specific Learning Curves**:
+   - **Large organs** (background, prostate): Converge quickly, 10 epochs achieves >0.96 Dice
+   - **Medium organs** (bladder, rectum): 10.2% and 4.3% improvement over 42 epochs
+   - **Challenging bones** (femurs): Dramatic improvement with training (19.2% and 11.8%)
 
-3. **Class-Specific Insights**:
-   - **Large, high-contrast structures** (background, prostate) converge quickly (<10 epochs)
-   - **Small organs** (bladder, rectum) benefit moderately from extended training (+6-11%)
-   - **Challenging structures** (femurs) show dramatic improvement with longer training (+9-17%)
+3. **Variance Reduction**:
+   - **10 epochs**: High variance (femur std ±0.0858 to ±0.1082)
+   - **42 epochs**: Low variance (femur std ±0.0455 to ±0.0566, -47% reduction)
+   - **Stability increases with training**: More consistent predictions on test set
 
-4. **Convergence Characteristics**:
-   - Model reaches "project requirement" (≥0.7 Dice on test set) within 10 epochs
-   - Extended training refines boundaries and improves consistency
-   - Early stopping at epoch 44 (vs max 100) indicates optimal training duration
+4. **Training Efficiency Analysis**:
+   - **10→20 epochs**: +6.8% mean Dice (5.5 percentage points per hour)
+   - **20→42 epochs**: +1.7% mean Dice (1.1 percentage points per hour)
+   - **Efficiency ratio**: Early training is 5× more efficient, but doesn't meet requirements
 
 5. **Practical Recommendations**:
-   - **For development/testing**: Use 10 epochs (1.2h, 91.9% accuracy, meets requirement)
-   - **For production**: Use 20 epochs (2.5h, 96.7% accuracy, best ROI, exceeds requirement)
-   - **For medical diagnosis**: Use 100-epoch training (~4h, 100% accuracy, highest safety margin)
+   - **❌ Avoid 10 epochs**: Does not meet project requirements
+   - **✅ Use 20 epochs for production**: Meets requirements, excellent ROI (2.5h)
+   - **✅ Use 42 epochs for critical applications**: Best accuracy, medical-grade performance (~4h)
 
 
 ---
