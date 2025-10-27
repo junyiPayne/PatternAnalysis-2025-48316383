@@ -13,35 +13,60 @@ from scipy.ndimage import zoom
 import glob
 from pathlib import Path
 from config import CONFIG  # 导入配置
+from torch.amp import autocast  # 导入 AMP
 
-def predict(model, image_path, device='cuda', target_size=None):
+def predict(model, image_path, device='cuda', target_size=None, use_amp=False):
     """
     Predict segmentation for a single 3D image with optional downsampling.
+    
+    Args:
+        model: trained UNet3D model
+        image_path: Input image path
+        device: Device ('cuda' or 'cpu')
+        target_size: Target size, if None use original size
+        use_amp: Whether to use mixed precision inference
+
+    Returns:
+        prediction: Prediction result (original size)
+        affine: NIfTI affine matrix
+        original_shape: Original image shape
     """
     model.eval()
-    
+
+    # Load image
     img_nifti = nib.load(image_path)
     image = img_nifti.get_fdata(caching='unchanged').astype(np.float32)
     affine = img_nifti.affine
     original_shape = image.shape
-    
+
+    # Process 4D images (remove time dimension)
     if len(image.shape) == 4:
         image = image[:, :, :, 0]
-    
+
+    # Resize to target size if specified
     if target_size is not None:
         zoom_factors = [t / o for t, o in zip(target_size, image.shape)]
         image = zoom(image, zoom_factors, order=1)
-    
+
+    # Standardize (same as training)
     image = (image - image.mean()) / (image.std() + 1e-8)
+
+    # Convert to tensor (1, 1, D, H, W)
     image_tensor = torch.from_numpy(image).unsqueeze(0).unsqueeze(0).float().to(device)
-    
+
+    # Inference
     with torch.no_grad():
-        # predict.py 中启用 AMP
-        with torch.amp.autocast(device_type='cuda'):
+        if use_amp and device != 'cpu':
+            with autocast(device_type='cuda'):
+                output = model(image_tensor)
+        else:
             output = model(image_tensor)
-            output = torch.softmax(output, dim=1)  # 确保与训练时一致
-            prediction = torch.argmax(output, dim=1).cpu().numpy()[0]
-    
+        
+        # Softmax + Argmax
+        output = torch.softmax(output, dim=1)
+        prediction = torch.argmax(output, dim=1).cpu().numpy()[0]
+
+    # Restore original size
     if target_size is not None:
         zoom_factors_back = [o / t for o, t in zip(original_shape, target_size)]
         prediction = zoom(prediction, zoom_factors_back, order=0)
@@ -79,34 +104,63 @@ def get_test_split(all_images, all_labels, split_ratio=(0.7, 0.15, 0.15), seed=4
 if __name__ == "__main__":
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
+
+    # Load checkpoint
+    checkpoint_path = "best_model.pth"
+    if not os.path.exists(checkpoint_path):
+        raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
     
-    # MUST match training configuration
-    num_classes = 6
-    base_filters = 16  # CHECK: match your train.py
-    target_size = (128, 128, 64)  # CHECK: match your train.py
-    seed = 42  # MUST match dataset.py
+    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
+    print(f"✅ Loaded checkpoint from epoch {checkpoint.get('epoch', 'N/A')}")
+    print(f"   Best validation Dice: {checkpoint.get('best_dice', 'N/A'):.4f}")
+
+    # Load config from checkpoint (prefer checkpoint config to ensure consistency with training)
+    if 'config' in checkpoint:
+        loaded_config = checkpoint['config']
+        print("\n📋 Using config from checkpoint:")
+        print(f"   num_classes: {loaded_config['num_classes']}")
+        print(f"   base_filters: {loaded_config['base_filters']}")
+        print(f"   target_size: {loaded_config.get('target_size', 'Not specified')}")
+        
+        num_classes = loaded_config['num_classes']
+        base_filters = loaded_config['base_filters']
+        in_channels = loaded_config.get('in_channels', 1)
+        target_size = loaded_config.get('target_size', None)
+        use_amp = loaded_config.get('use_amp', False)
+    else:
+        # if there is no config in checkpoint, use current CONFIG
+        print("\n⚠️  No config in checkpoint, using current CONFIG")
+        num_classes = CONFIG['num_classes']
+        base_filters = CONFIG['base_filters']
+        in_channels = CONFIG.get('in_channels', 1)
+        target_size = CONFIG.get('target_size', None)
+        use_amp = CONFIG.get('use_amp', False)
     
-    # 初始化模型
+    print(f"   use_amp: {use_amp}\n")
+
+    # user-defined model
     model = UNet3D(
-        in_channels=1, 
-        num_classes=CONFIG['num_classes'], 
-        base_filters=CONFIG['base_filters']
+        in_channels=in_channels,
+        num_classes=num_classes,
+        base_filters=base_filters
     ).to(device)
-    
-    # 加载权重
-    checkpoint = torch.load('best_model.pth', map_location=device)
+
+    # Load model weights
     model.load_state_dict(checkpoint['model_state_dict'])
-    print(f"Loaded checkpoint from epoch {checkpoint.get('epoch', 'N/A')}")
-    print(f"Best validation Dice: {checkpoint.get('best_dice', 'N/A'):.4f}")
-    
-    data_root = r"C:\Users\17561\Desktop\new 3710\data\HipMRI_study_complete_release_v1"
-    img_dir = os.path.join(data_root, "semantic_MRs_anon")
-    label_dir = os.path.join(data_root, "semantic_labels_anon")
+    model.eval()
+    print(f"✅ Model loaded successfully")
+    print(f"   Total parameters: {sum(p.numel() for p in model.parameters()):,}\n")
+
+    # Load test data paths（use CONFIG，because data paths may change）
+    data_root = CONFIG['data_root']
+    img_dir = os.path.join(data_root, CONFIG['img_subdir'])
+    label_dir = os.path.join(data_root, CONFIG['label_subdir'])
     
     all_images = sorted(glob.glob(os.path.join(img_dir, "*.nii.gz")))
     all_labels = sorted(glob.glob(os.path.join(label_dir, "*.nii.gz")))
-    
-    # Get TEST SET ONLY (matching dataset.py split)
+
+    # get test set（same with dataset.py）
+    seed = CONFIG.get('seed', 42)  
     test_images, test_labels = get_test_split(all_images, all_labels, seed=seed)
     
     print(f"Total images: {len(all_images)}")
@@ -122,21 +176,25 @@ if __name__ == "__main__":
         print(f"Processing: {img_name}")
         
         try:
-            # Generate prediction
-            prediction, affine, orig_shape = predict(model, img_path, device, target_size=target_size)
-            
-            # Load ground truth
+            # generate prediction results（use same settings as training）
+            prediction, affine, orig_shape = predict(
+                model, img_path, device, 
+                target_size=target_size, 
+                use_amp=use_amp
+            )
+
+            # Load ground truth labels
             label_nifti = nib.load(label_path)
             gt_label = label_nifti.get_fdata(caching='unchanged').astype(np.uint8)
             if len(gt_label.shape) == 4:
                 gt_label = gt_label[:, :, :, 0]
             gt_label = np.clip(gt_label, 0, num_classes - 1)
-            
-            # Calculate Dice scores
+
+            # calculate Dice scores
             dice_scores = dice_coefficient_np(prediction, gt_label, num_classes)
             all_dice_scores.append(dice_scores)
             
-            # Save prediction
+            # keep results
             output_name = img_name.replace('.nii.gz', '_pred.nii.gz').replace('.nii', '_pred.nii')
             output_path = output_dir / output_name
             
@@ -144,7 +202,7 @@ if __name__ == "__main__":
             nib.save(nifti_pred, str(output_path))
             
             unique_labels = np.unique(prediction)
-            mean_dice = np.mean(dice_scores[1:])  # Exclude background
+            mean_dice = np.mean(dice_scores[1:])  # remove background class
             print(f"  Saved: {output_path.name}")
             print(f"  Dice per class: {[f'{d:.4f}' for d in dice_scores]}")
             print(f"  Mean Dice (excl. bg): {mean_dice:.4f}\n")
@@ -153,7 +211,7 @@ if __name__ == "__main__":
             print(f"  ERROR processing {img_name}: {e}\n")
             continue
     
-    # Calculate and display test set statistics
+    # calculate overall statistics
     if all_dice_scores:
         all_dice_scores = np.array(all_dice_scores)
         mean_dice_per_class = np.mean(all_dice_scores, axis=0)
@@ -168,8 +226,8 @@ if __name__ == "__main__":
         for c in range(num_classes):
             print(f"  Class {c}: {mean_dice_per_class[c]:.4f} ± {std_dice_per_class[c]:.4f}")
         print(f"\nMean Dice (excluding background): {mean_dice_overall:.4f}")
-        
-        # Check if requirement met
+
+        # Check if requirements are met
         min_dice_non_bg = np.min(mean_dice_per_class[1:])
         print(f"Minimum Dice (excluding background): {min_dice_non_bg:.4f}")
         
