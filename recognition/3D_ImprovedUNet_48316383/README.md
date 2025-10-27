@@ -1239,9 +1239,9 @@ The extended training configuration represents the **highest accuracy option**, 
 <td><img src="./readme_images/comparisons/case015_axial_100epochs.png" width="100%"/></td>
 </tr>
 <tr>
-<td align="center">Dice: 0.8160<br/>Femurs just meet threshold</td>
-<td align="center">Dice: 0.8694<br/>Improved boundaries</td>
-<td align="center">Dice: 0.8875<br/>Best precision</td>
+<td align="center">Mean Dice: 0.8098<br/>Femur Left fails (0.6799)</td>
+<td align="center">Mean Dice: 0.8646<br/>All classes ≥ 0.7</td>
+<td align="center">Mean Dice: 0.8794<br/>Best performance</td>
 </tr>
 </table>
 
@@ -1259,9 +1259,9 @@ The extended training configuration represents the **highest accuracy option**, 
 <td><img src="./readme_images/comparisons/case015_coronal_100epochs.png" width="100%"/></td>
 </tr>
 <tr>
-<td align="center">Good shape, rough edges</td>
-<td align="center">Cleaner boundaries</td>
-<td align="center">Refined small organs</td>
+<td align="center">Does not meet requirement</td>
+<td align="center">Meets all requirements</td>
+<td align="center">Optimal accuracy</td>
 </tr>
 </table>
 
