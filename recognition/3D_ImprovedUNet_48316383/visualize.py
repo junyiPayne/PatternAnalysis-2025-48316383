@@ -1,6 +1,11 @@
 """
 Visualization script for 3D segmentation results.
 Generates 2D slice comparisons (original image, ground truth, prediction) for README display.
+
+Usage:
+    python visualize.py                    # Auto-detect most recent prediction directory
+    python visualize.py --epochs 10        # Visualize specific epoch (e.g., 10epochs)
+    python visualize.py --pred_dir ./predictions_10epochs  # Specify directory directly
 """
 import os
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
@@ -11,6 +16,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from pathlib import Path
 import glob
+import argparse
 
 def normalize_image(image):
     """Normalize image to [0, 1] for display."""
@@ -188,36 +194,60 @@ def get_test_split(all_images, all_labels, split_ratio=(0.7, 0.15, 0.15), seed=4
     return test_images, test_labels, test_indices
 
 if __name__ == "__main__":
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Visualize 3D segmentation predictions')
+    parser.add_argument('--epochs', type=int, help='Specify epoch number (e.g., 10 for predictions_10epochs)')
+    parser.add_argument('--pred_dir', type=str, help='Specify prediction directory path directly')
+    args = parser.parse_args()
+    
     # Configuration
     data_root = r"C:\Users\17561\Desktop\new 3710\data\HipMRI_study_complete_release_v1"
     img_dir = os.path.join(data_root, "semantic_MRs_anon")
     label_dir = os.path.join(data_root, "semantic_labels_anon")
     
-    # Auto-detect prediction directory with epoch suffix
-    # First, try to find directories matching pattern "predictions_*epochs"
-    pred_dirs = sorted(glob.glob("./predictions_*epochs"))
-    
-    if pred_dirs:
-        # Use the most recent prediction directory (last in sorted list)
-        pred_dir = Path(pred_dirs[-1])
-        # Extract epoch suffix from directory name (e.g., "predictions_20epochs" -> "20epochs")
-        epoch_suffix = pred_dir.name.replace("predictions_", "")
-        print(f"📁 Found prediction directory: {pred_dir}")
-        print(f"📊 Detected training epochs: {epoch_suffix}\n")
+    # Determine prediction directory
+    if args.pred_dir:
+        # User specified directory directly
+        pred_dir = Path(args.pred_dir)
+        print(f"Using user-specified prediction directory: {pred_dir}")
+    elif args.epochs:
+        # User specified epoch number
+        pred_dir = Path(f"./predictions_{args.epochs}epochs")
+        if not pred_dir.exists():
+            print(f"Error: {pred_dir} does not exist!")
+            exit(1)
+        print(f"Using prediction directory for {args.epochs} epochs: {pred_dir}")
     else:
-        # Fallback to default predictions directory
-        pred_dir = Path("./predictions")
-        epoch_suffix = None
-        print(f"📁 Using default prediction directory: {pred_dir}")
-        print(f"⚠️  No epoch information detected in directory name\n")
+        # Auto-detect: use most recently modified prediction directory
+        pred_dirs = glob.glob("./predictions_*epochs")
+        
+        if pred_dirs:
+            # Sort by modification time (most recent first)
+            pred_dirs_with_time = [(Path(d), os.path.getmtime(d)) for d in pred_dirs]
+            pred_dirs_with_time.sort(key=lambda x: x[1], reverse=True)
+            pred_dir = pred_dirs_with_time[0][0]  # Most recently modified
+            
+            print(f"Auto-detected most recently modified prediction directory: {pred_dir}")
+            print(f"  (Modified: {os.path.getmtime(pred_dir)})")
+            print(f"  Tip: Use --epochs N to specify a different epoch, or --pred_dir to specify path")
+        else:
+            pred_dir = Path("./predictions")
+            print("No predictions_*epochs directories found, using default: ./predictions")
     
-    # Create output directory with epoch suffix if available
-    if epoch_suffix:
+    # Extract epoch suffix from directory name
+    if 'epochs' in pred_dir.name:
+        epoch_suffix = pred_dir.name.replace("predictions_", "")
+    else:
+        epoch_suffix = "default"
+    
+    # Create output directory with epoch suffix
+    if epoch_suffix != "default":
         output_dir = Path(f"./visualizations_{epoch_suffix}")
     else:
         output_dir = Path("./visualizations")
     output_dir.mkdir(exist_ok=True)
     print(f"📁 Visualizations will be saved to: {output_dir}\n")
+
     
     num_classes = 6
     class_names = ['Background', 'Prostate', 'Bladder', 'Rectum', 'Femur_L', 'Femur_R']
