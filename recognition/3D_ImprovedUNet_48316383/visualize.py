@@ -192,9 +192,32 @@ if __name__ == "__main__":
     data_root = r"C:\Users\17561\Desktop\new 3710\data\HipMRI_study_complete_release_v1"
     img_dir = os.path.join(data_root, "semantic_MRs_anon")
     label_dir = os.path.join(data_root, "semantic_labels_anon")
-    pred_dir = Path("./predictions")
-    output_dir = Path("./visualizations")
+    
+    # Auto-detect prediction directory with epoch suffix
+    # First, try to find directories matching pattern "predictions_*epochs"
+    pred_dirs = sorted(glob.glob("./predictions_*epochs"))
+    
+    if pred_dirs:
+        # Use the most recent prediction directory (last in sorted list)
+        pred_dir = Path(pred_dirs[-1])
+        # Extract epoch suffix from directory name (e.g., "predictions_20epochs" -> "20epochs")
+        epoch_suffix = pred_dir.name.replace("predictions_", "")
+        print(f"📁 Found prediction directory: {pred_dir}")
+        print(f"📊 Detected training epochs: {epoch_suffix}\n")
+    else:
+        # Fallback to default predictions directory
+        pred_dir = Path("./predictions")
+        epoch_suffix = None
+        print(f"📁 Using default prediction directory: {pred_dir}")
+        print(f"⚠️  No epoch information detected in directory name\n")
+    
+    # Create output directory with epoch suffix if available
+    if epoch_suffix:
+        output_dir = Path(f"./visualizations_{epoch_suffix}")
+    else:
+        output_dir = Path("./visualizations")
     output_dir.mkdir(exist_ok=True)
+    print(f"📁 Visualizations will be saved to: {output_dir}\n")
     
     num_classes = 6
     class_names = ['Background', 'Prostate', 'Bladder', 'Rectum', 'Femur_L', 'Femur_R']
