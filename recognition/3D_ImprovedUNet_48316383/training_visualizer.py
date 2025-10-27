@@ -100,12 +100,15 @@ class TrainingVisualizer:
             for c in range(min(self.num_classes, len(class_dice))):
                 self.history['class_dice_val'][c].append(class_dice[c])
     
-    def plot_final_summary(self):
+    def plot_final_summary(self, epoch_suffix=None):
         """
         Generate and save final training summary plot with all metrics
         
         This method should be called once at the end of training or when early stopping occurs.
         It creates a comprehensive 6-panel visualization showing the training progress.
+        
+        Args:
+            epoch_suffix (str, optional): Suffix to add to filename (e.g., "20epochs")
         """
         epochs = self.history['epochs']
         if len(epochs) == 0:
@@ -234,9 +237,12 @@ class TrainingVisualizer:
         
         plt.tight_layout()
         
-        # Save the final comprehensive plot
+        # Save the final comprehensive plot with epoch suffix
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        plot_path = self.save_dir / f'training_summary_{timestamp}.png'
+        if epoch_suffix:
+            plot_path = self.save_dir / f'training_summary_{epoch_suffix}_{timestamp}.png'
+        else:
+            plot_path = self.save_dir / f'training_summary_{timestamp}.png'
         plt.savefig(plot_path, dpi=150, bbox_inches='tight')
         
         print(f"\n{'='*70}")
@@ -245,13 +251,18 @@ class TrainingVisualizer:
         
         plt.close(fig)
     
-    def save_history(self, filename='training_history.json'):
+    def save_history(self, filename='training_history.json', epoch_suffix=None):
         """
         Save metric history to JSON file
         
         Args:
             filename (str): Output filename
+            epoch_suffix (str, optional): Suffix to add to filename (e.g., "20epochs")
         """
+        # Add epoch suffix to filename if provided
+        if epoch_suffix:
+            filename = filename.replace('.json', f'_{epoch_suffix}.json')
+        
         filepath = self.save_dir / filename
         
         # Convert numpy arrays to lists for JSON serialization
@@ -292,19 +303,26 @@ class TrainingVisualizer:
         
         print(f"✅ Training history loaded: {filepath}")
     
-    def generate_final_report(self):
+    def generate_final_report(self, epoch_suffix=None):
         """
         Generate a comprehensive final training report with all plots
+        
+        Args:
+            epoch_suffix (str, optional): Suffix to add to filenames (e.g., "20epochs")
         """
         if len(self.history['epochs']) == 0:
             print("⚠️  No training data to generate report")
             return
         
-        # Save history
-        self.save_history()
+        # Save history with epoch suffix
+        self.save_history(epoch_suffix=epoch_suffix)
         
-        # Generate text report
-        report_path = self.save_dir / 'training_report.txt'
+        # Generate text report with epoch suffix
+        if epoch_suffix:
+            report_filename = f'training_report_{epoch_suffix}.txt'
+        else:
+            report_filename = 'training_report.txt'
+        report_path = self.save_dir / report_filename
         
         epochs = self.history['epochs']
         with open(report_path, 'w') as f:
