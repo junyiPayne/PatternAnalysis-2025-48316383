@@ -1547,7 +1547,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Student ID**: 48316383  
 **Course**: COMP3710 Pattern Analysis  
-**Institution**: [Your University Name]  
+**Institution**: university of Queensland  
 **Year**: 2025
 
 ---
