@@ -2,7 +2,7 @@
 
 **Student ID**: 48316383  
 **Course**: COMP3710 Pattern Analysis  
-**Project**: Multi-Class 3D Medical Image Segmentation
+**Project**: Project 3 - Medical Image Segmentation for 3D improved UNet
 
 ---
 
