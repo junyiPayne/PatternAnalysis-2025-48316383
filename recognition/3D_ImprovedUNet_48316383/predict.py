@@ -111,7 +111,10 @@ if __name__ == "__main__":
         raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
     
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
-    print(f"✅ Loaded checkpoint from epoch {checkpoint.get('epoch', 'N/A')}")
+    
+    # Extract epoch number from checkpoint for directory naming
+    trained_epochs = checkpoint.get('epoch', 'unknown')
+    print(f"✅ Loaded checkpoint from epoch {trained_epochs}")
     print(f"   Best validation Dice: {checkpoint.get('best_dice', 'N/A'):.4f}")
 
     # Load config from checkpoint (prefer checkpoint config to ensure consistency with training)
@@ -166,8 +169,13 @@ if __name__ == "__main__":
     print(f"Total images: {len(all_images)}")
     print(f"Test set size: {len(test_images)} (15% of total)\n")
     
-    output_dir = Path("./predictions")
+    # Create output directory with epoch suffix for tracking different training runs
+    if trained_epochs != 'unknown':
+        output_dir = Path(f"./predictions_{trained_epochs}epochs")
+    else:
+        output_dir = Path("./predictions")
     output_dir.mkdir(exist_ok=True)
+    print(f"📁 Predictions will be saved to: {output_dir}\n")
     
     all_dice_scores = []
     
