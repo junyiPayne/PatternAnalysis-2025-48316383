@@ -156,6 +156,8 @@ def train_model(model, train_loader, val_loader, optimizer, scheduler, weight_ad
     if use_early_stopping:
         early_stopper = EarlyStopper(patience=patience, min_delta=min_delta)
     best_min_dice_worst_k = -1.0  # Track the best minimum Dice score for the worst K classes
+    best_model_state = None  # Store best model state for saving later
+    best_epoch = 0  # Track which epoch had the best performance
 
     # Initialize TrainingVisualizer if enabled
     visualizer = None
@@ -273,17 +275,19 @@ def train_model(model, train_loader, val_loader, optimizer, scheduler, weight_ad
                 }
                 visualizer.update(epoch + 1, metrics)
 
-            # Save the best model based on the worst K classes' minimum Dice score
+            # Track the best model (don't save yet, only record the state)
             if min_dice_worst_k > best_min_dice_worst_k:
                 best_min_dice_worst_k = min_dice_worst_k
-                torch.save({
+                best_epoch = epoch + 1
+                # Store the best model state in memory
+                best_model_state = {
                     'epoch': epoch + 1,
-                    'model_state_dict': model.state_dict(),
-                    'optimizer_state_dict': optimizer.state_dict(),
+                    'model_state_dict': model.state_dict().copy(),
+                    'optimizer_state_dict': optimizer.state_dict().copy(),
                     'best_dice': best_min_dice_worst_k,
                     'config': CONFIG
-                }, "best_model.pth")
-                print(f"  🎉 Model saved! New BEST MIN Dice (Worst {num_worst_classes_to_track}): {best_min_dice_worst_k:.4f}")
+                }
+                print(f"  🎉 New BEST model found at epoch {epoch + 1}! MIN Dice (Worst {num_worst_classes_to_track}): {best_min_dice_worst_k:.4f}")
 
             # Early stopping based on the worst K classes' minimum Dice score
             if use_early_stopping and early_stopper.early_stop(min_dice_worst_k):
@@ -293,19 +297,34 @@ def train_model(model, train_loader, val_loader, optimizer, scheduler, weight_ad
         # Step the learning rate scheduler
         scheduler.step()
 
-    print("Training finished!")
+    # Get actual training info
+    actual_epoch_stopped = epoch + 1  # Actual epoch where training stopped
+    configured_epochs = num_epochs  # Configured/planned total epochs
     
-    # Generate final training visualization and report
+    print("\nTraining finished!")
+    print(f"   Configured epochs: {configured_epochs}")
+    print(f"   Actual epochs trained: {actual_epoch_stopped}")
+    
+    # Save the best model (only once at the end of training or after early stopping)
+    # Use configured epochs in filename, not actual stopped epoch
+    if best_model_state is not None:
+        best_model_path = f"best_model_{configured_epochs}epochs.pth"
+        torch.save(best_model_state, best_model_path)
+        print(f"\n💾 Best model saved to: {best_model_path}")
+        print(f"   Best performance at epoch: {best_epoch}/{configured_epochs}")
+        print(f"   Best MIN Dice (Worst {num_worst_classes_to_track}): {best_min_dice_worst_k:.4f}")
+    else:
+        print("\n⚠️  No best model recorded (validation may not have run)")
+    
+    # Generate final training visualization and report with configured epochs suffix
     if visualizer is not None:
         print("\n" + "="*80)
         print("Generating final training summary...")
         print("="*80)
         
-        # Generate comprehensive summary plot
-        visualizer.plot_final_summary()
-        
-        # Generate text report
-        visualizer.generate_final_report()
+        # Use configured epochs in filename for consistency
+        visualizer.plot_final_summary(epoch_suffix=f"{configured_epochs}epochs")
+        visualizer.generate_final_report(epoch_suffix=f"{configured_epochs}epochs")
         
         print("✅ Training visualization complete!")
 
