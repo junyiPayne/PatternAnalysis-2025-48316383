@@ -25,6 +25,9 @@
 - [File Descriptions](#file-descriptions)
 - [Setup and Usage](#setup-and-usage)
 - [References](#references)
+- [AI Usage Declaration](#ai-usage-declaration)
+- [License](#license)
+- [Author](#author)
 
 ---
 
@@ -1508,6 +1511,29 @@ See [Workflow Documentation](./WORKFLOW.md) for:
 ### Dataset
 
 **HipMRI Prostate Dataset**: Multi-class segmentation dataset with T2-weighted MRI sequences and expert annotations for pelvic anatomical structures.
+
+---
+
+## AI Usage Declaration
+
+In the completion of this project, AI assistance was utilized in the following capacities:
+
+### Model Development Assistance
+- **Architecture Design Consultation**: AI tools were used to analyze and provide recommendations on model architecture construction and design decisions
+- **Optimization Suggestions**: AI provided suggestions for model optimization strategies, including hyperparameter tuning approaches and training techniques
+
+### Documentation Support
+- **README Grammar Correction**: AI assisted in proofreading and correcting grammatical errors in the documentation
+- **Format Guidance**: AI provided guidance on documentation structure, formatting conventions, and Markdown best practices
+- **Framework Organization**: AI helped structure the overall README framework for clarity and professional presentation
+
+### Scope and Limitations
+- **All experimental work was conducted independently**: All training experiments, model runs, hyperparameter tuning, and result validation were personally executed by the author
+- **Code implementation**: Core model architecture, training pipeline, and evaluation code were developed and implemented by the author
+- **Data analysis**: All performance analysis, metric computation, and result interpretation were personally conducted
+- **Original research**: Design decisions, experimental choices, and final conclusions are the author's own work
+
+**Transparency Statement**: This declaration is provided in the interest of academic integrity and transparency regarding the use of AI tools in academic work. The AI served as a supplementary tool for consultation and documentation refinement, while the substantive technical work, experimental execution, and intellectual contributions remain entirely the work of the author (Student ID: 48316383).
 
 ---
 
