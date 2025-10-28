@@ -1336,7 +1336,8 @@ The extended training configuration represents the **highest accuracy option**, 
 | **visualize.py** | 2D slice visualization | Multi-axis slice extraction, overlay generation |
 | **training_visualizer.py** | Training progress monitoring | `TrainingVisualizer`, 6-panel plot generation |
 | **check_data.py** | Dataset validation | File counting, shape verification, class distribution analysis |
-| **requirements.txt** | Python dependencies | All required packages with versions |
+| **environment.yml** | Conda environment configuration | One-command environment setup with all dependencies |
+| **requirements.txt** | Pip dependencies (alternative) | Package list for pip-based installation |
 | **INSTALLATION.md** | Setup instructions | Detailed installation guide for all platforms |
 | **QUICKSTART.md** | Quick reference | Essential commands and usage examples |
 | **WORKFLOW.md** | Pipeline documentation | Complete workflow with visual diagrams |
@@ -1406,17 +1407,33 @@ The extended training configuration represents the **highest accuracy option**, 
 - **Checks**: File count, filename matching, shape consistency, label ranges
 - **Output**: Console report with dataset statistics and potential issues
 
+#### `environment.yml`
+- **Purpose**: Conda environment specification for one-command setup
+- **Content**: Complete environment configuration with all dependencies
+- **Usage**: `conda env create -f environment.yml` to create environment
+- **Key features**: 
+  - Python 3.8 specification
+  - PyTorch with CUDA 11.8 support
+  - All medical imaging and scientific computing libraries
+  - Optimized for RTX 3050Ti (4GB VRAM)
+- **Advantages**: 
+  - Single command installation
+  - Automatic dependency resolution
+  - Platform-independent configuration
+  - Includes both conda and pip dependencies
+
 #### `requirements.txt`
-- **Purpose**: Python package dependency specification
+- **Purpose**: Alternative pip-based dependency specification
 - **Content**: All required packages with version constraints
-- **Usage**: `pip install -r requirements.txt` for environment setup
+- **Usage**: `pip install -r requirements.txt` for manual environment setup
 - **Key dependencies**: PyTorch, MONAI, nibabel, scipy, matplotlib
+- **Note**: Use `environment.yml` for easier installation
 
 #### `INSTALLATION.md`
 - **Purpose**: Comprehensive installation and setup guide
 - **Content**: 
   - Platform-specific instructions (Windows, Linux, macOS)
-  - Virtual environment setup
+  - Virtual environment setup (both conda and venv)
   - CUDA and PyTorch installation
   - Dependency installation
   - Environment verification steps
@@ -1448,22 +1465,64 @@ The extended training configuration represents the **highest accuracy option**, 
 This section provides a brief overview. For detailed instructions, refer to the linked documentation.
 
 ### Prerequisites
-- Python ≥ 3.8
+- Anaconda or Miniconda (recommended for environment management)
 - CUDA-capable GPU (4GB+ VRAM; RTX 3050Ti 4GB tested and working with AMP)
 - 16GB+ System RAM
+- CUDA 11.8 (for GPU acceleration)
 
 ### Installation
 
-See [Installation Guide](./INSTALLATION.md) for comprehensive setup instructions including:
-- Virtual environment creation
-- Dependency installation
-- PyTorch with CUDA setup
-- Environment verification
+**🚀 One-Command Installation (Recommended):**
 
-**Quick install:**
+The easiest way to set up the environment is using the provided `environment.yml` file:
+
 ```bash
+# 1. Create and activate the environment
+conda env create -f environment.yml
+conda activate improved_unet_env
+
+# 2. Verify installation
+python -c "import torch; print(f'PyTorch: {torch.__version__}'); print(f'CUDA Available: {torch.cuda.is_available()}')"
+```
+
+**Alternative Installation Methods:**
+
+<details>
+<summary>Click to expand: Manual pip installation</summary>
+
+```bash
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# or
+venv\Scripts\activate  # Windows
+
+# Install dependencies
 pip install -r requirements.txt
 ```
+
+</details>
+
+<details>
+<summary>Click to expand: CPU-only installation</summary>
+
+```bash
+# For systems without GPU support
+conda env create -f environment.yml
+# Then manually install CPU-only PyTorch:
+conda activate improved_unet_env
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+```
+
+</details>
+
+**📚 Comprehensive Setup Guide:**
+
+See [Installation Guide](./INSTALLATION.md) for:
+- Platform-specific instructions (Windows, Linux, macOS)
+- Troubleshooting common issues
+- CUDA toolkit installation
+- Environment verification steps
 
 ### Configuration
 
