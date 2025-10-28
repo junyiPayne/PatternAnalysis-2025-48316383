@@ -1,0 +1,46 @@
+name: improved_unet_env
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  # Python version
+  - python=3.8
+  
+  # Deep Learning Framework (PyTorch with CUDA 11.8 support)
+  - pytorch>=2.0.0
+  - torchvision>=0.15.0
+  - pytorch-cuda=11.8
+  
+  # Medical Image Processing
+  - nibabel>=5.0.0
+  
+  # Scientific Computing
+  - numpy>=1.24.0
+  - scipy>=1.10.0
+  
+  # Visualization
+  - matplotlib>=3.7.0
+  
+  # Utilities
+  - tqdm>=4.65.0
+  
+  # pip dependencies (not available via conda)
+  - pip
+  - pip:
+      - monai>=1.3.0
+
+# Installation Instructions:
+# 1. Install Anaconda or Miniconda from: https://docs.conda.io/en/latest/miniconda.html
+# 2. Create the environment: conda env create -f environment.yml
+# 3. Activate the environment: conda activate improved_unet_env
+# 4. Verify installation: python -c "import torch; print(torch.cuda.is_available())"
+#
+# For CPU-only installation (no GPU):
+# - Remove the line: - pytorch-cuda=11.8
+# - Or manually install: conda env create -f environment.yml --override-channels -c pytorch -c conda-forge -c defaults
+#
+# Tested on:
+# - Windows 10/11 with RTX 3050Ti (4GB VRAM)
+# - CUDA 11.8
+# - Python 3.8
