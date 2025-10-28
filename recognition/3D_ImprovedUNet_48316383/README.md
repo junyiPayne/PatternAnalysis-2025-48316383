@@ -47,7 +47,7 @@ This implementation features three key technical advancements that significantly
 
 1. **🎯 Dynamic Class Weight Adjustment** - Adaptive per-class weighting mechanism that automatically adjusts during training based on recent performance, eliminating manual hyperparameter tuning and ensuring balanced multi-class convergence
 
-2. **⚡ Mixed Precision Training (AMP)** - Automatic FP16/FP32 computation switching that reduces memory usage by 31% and accelerates training by 1.8-2.3×, with zero accuracy loss
+2. **⚡ Mixed Precision Training (AMP)** - Automatic FP16/FP32 computation switching that enables training on 4GB GPUs (~3.7GB usage). Without AMP, memory overflows to shared memory causing 2-3× slowdown
 
 3. **🏥 MONAI Integration** - Professional medical imaging pipeline with intelligent caching (CacheDataset), providing 2-3× faster data loading and thread-safe multi-worker preprocessing
 
@@ -193,8 +193,8 @@ for batch in dataloader:
 ```
 
 **Impact**: 
-- Memory reduction: 31% (16GB → 11GB)
-- Speed improvement: 1.8-2.3× faster training
+- Memory efficiency: Fits in 4GB VRAM (~3.7GB used)
+- Without AMP: Overflows to shared memory, 2-3× slower
 - Enables larger batch sizes or higher resolution inputs
 
 #### 3. 🏥 MONAI Medical Imaging Pipeline
@@ -441,7 +441,7 @@ Advantage: Allows small gradient flow for negative values, preventing dead neuro
 - **Dice Loss alone**: Good for overlap but may ignore hard examples
 - **Cross-Entropy alone**: Pixel-wise loss, struggles with class imbalance
 
-**Our Hybrid Loss:**
+**My Hybrid Loss:**
 ```python
 # FocalDiceLoss = Dice Loss + Focal Loss
 
@@ -694,24 +694,28 @@ for batch in dataloader:
 - **FP32** (full precision): Loss computation, parameter updates
 - **Gradient scaling**: Prevents underflow in FP16 gradients
 
-**Empirical Effects:**
+**Empirical Effects (RTX 3050Ti 4GB VRAM):**
 
-**Memory Savings:**
-| Component | FP32 | FP16 (AMP) | Reduction |
-|-----------|------|------------|-----------|
-| Model weights | 6 GB | 3 GB | 50% |
-| Activations | 4 GB | 2 GB | 50% |
-| Optimizer state | 6 GB | 6 GB | 0% (kept in FP32) |
-| **Total** | **16 GB** | **11 GB** | **31%** |
+**Memory Usage (Actual Measurements):**
+| Configuration | GPU Memory Used | Shared Memory Used | Status |
+|---------------|-----------------|-------------------|--------|
+| **With AMP (FP16)** | **~3.7 GB** | Minimal | ✅ Fits in VRAM |
+| **Without AMP (FP32)** | Exceeds 4GB | ~2-3 GB | ⚠️ Overflows to shared memory (slower) |
+
+**Key Findings:**
+- **AMP is MANDATORY for 4GB VRAM GPUs**: Without mixed precision, the model exceeds GPU memory capacity
+- **Without AMP**: Training will use shared system memory, causing **significant slowdown** (2-3× slower)
+- **With AMP**: Training fits entirely in GPU memory at ~3.7GB, maintaining full speed
 
 **Speed Improvement:**
-- RTX 3050Ti: ~1.5-1.8× faster per epoch
+- With AMP (in VRAM): ~1.5-1.8× faster per epoch vs FP32 baseline on larger GPUs
+- Without AMP (shared memory): ~2-3× **SLOWER** than AMP due to CPU memory transfer overhead
 
 **Accuracy Impact:**
 - Mean Dice difference: < 0.001 (negligible)
 - Training stability: Identical convergence curves
 
-**⚠️ Important Note**: Mixed precision training is **highly recommended** for GPUs with limited VRAM (e.g., RTX 3050Ti with 4GB). Without AMP, training may encounter out-of-memory errors. Enable AMP in `config.py` by setting `use_amp=True`.
+**⚠️ CRITICAL for RTX 3050Ti (4GB VRAM)**: Mixed precision training (AMP) is **absolutely required**. Without AMP, the model will overflow GPU memory and use slow shared system memory, making training 2-3× slower. Enable AMP in `config.py` by setting `use_amp=True`.
 
 ---
 
@@ -1448,7 +1452,7 @@ This section provides a brief overview. For detailed instructions, refer to the 
 
 ### Prerequisites
 - Python ≥ 3.8
-- CUDA-capable GPU recommended (8GB+ VRAM)
+- CUDA-capable GPU (4GB+ VRAM; RTX 3050Ti 4GB tested and working with AMP)
 - 16GB+ System RAM
 
 ### Installation
