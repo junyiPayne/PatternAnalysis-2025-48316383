@@ -35,7 +35,7 @@
 
 This project implements an **Improved 3D UNet** for multi-class segmentation of prostate MRI images. The model segments six anatomical structures from T2-weighted MRI volumes: background, prostate, bladder, rectum, left femur, and right femur.
 
-**Dataset**: HipMRI Prostate Dataset (213 3D MRI volumes)  
+**Dataset**: HipMRI Prostate Dataset (211 3D MRI volumes)  
 **Objective**: Achieve Dice coefficient ≥ 0.7 for all anatomical structures on test set  
 **Input**: Single-channel 3D MRI volumes (resized to 128×128×64)  
 **Output**: 6-class semantic segmentation masks  
@@ -705,12 +705,13 @@ for batch in dataloader:
 | **Total** | **16 GB** | **11 GB** | **31%** |
 
 **Speed Improvement:**
-- RTX 3080: 1.8× faster per epoch
-- RTX 4090: 2.3× faster per epoch
+- RTX 3050Ti: ~1.5-1.8× faster per epoch
 
 **Accuracy Impact:**
 - Mean Dice difference: < 0.001 (negligible)
 - Training stability: Identical convergence curves
+
+**⚠️ Important Note**: Mixed precision training is **highly recommended** for GPUs with limited VRAM (e.g., RTX 3050Ti with 4GB). Without AMP, training may encounter out-of-memory errors. Enable AMP in `config.py` by setting `use_amp=True`.
 
 ---
 
@@ -1047,7 +1048,7 @@ where $P$ is the prediction and $G$ is the ground truth.
 - **Training date**: October 28, 2025, 04:26
 - **Epochs completed**: 10/10 (full training)
 - **Mean test Dice**: 0.8098 (excluding background)
-- **Training time**: ~1.2 hours (RTX 3080)
+- **Training time**: ~1.2 hours (RTX 3050Ti with AMP)
 - **Learning rate decay**: Exponential (γ=0.985)
 - **Test set**: 33 volumes
 
@@ -1111,7 +1112,7 @@ The 10-epoch training demonstrates **early-stage learning** but **fails to meet 
 - **Training date**: October 28, 2025, 02:45
 - **Epochs completed**: 20/20 (full training)
 - **Mean test Dice**: 0.8646 (excluding background)
-- **Training time**: ~2.5 hours (RTX 3080)
+- **Training time**: ~2.5 hours (RTX 3050Ti with AMP)
 - **Learning rate decay**: Exponential (γ=0.985)
 - **Test set**: 33 volumes
 
@@ -1178,7 +1179,7 @@ The 20-epoch training represents the **recommended production baseline**, succes
 - **Training date**: October 28, 2025, 03:16
 - **Epochs completed**: 42/100 (early stopped at optimal point)
 - **Mean test Dice**: 0.8794 (excluding background)
-- **Training time**: ~4 hours (RTX 3080)
+- **Training time**: ~4 hours (RTX 3050Ti with AMP)
 - **Learning rate decay**: Exponential (γ=0.985)
 - **Test set**: 33 volumes
 - **Early stopping**: Patience=10, triggered after epoch 42
