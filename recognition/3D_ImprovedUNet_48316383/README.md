@@ -1049,10 +1049,9 @@ where $P$ is the prediction and $G$ is the ground truth.
 ![Training Summary - 10 Epochs](./readme_images/training_summary_10epochs.png)
 
 **Training Details:**
-- **Training date**: October 28, 2025, 04:26
 - **Epochs completed**: 10/10 (full training)
 - **Mean test Dice**: 0.8098 (excluding background)
-- **Training time**: ~1.2 hours (RTX 3050Ti with AMP)
+- **Training time**: ~1.5 hours (RTX 3050Ti with AMP)
 - **Learning rate decay**: Exponential (γ=0.985)
 - **Test set**: 33 volumes
 
@@ -1113,10 +1112,9 @@ The 10-epoch training demonstrates **early-stage learning** but **fails to meet 
 ![Training Summary - 20 Epochs](./readme_images/training_summary_20epochs.png)
 
 **Training Details:**
-- **Training date**: October 28, 2025, 02:45
 - **Epochs completed**: 20/20 (full training)
 - **Mean test Dice**: 0.8646 (excluding background)
-- **Training time**: ~2.5 hours (RTX 3050Ti with AMP)
+- **Training time**: ~3 hours (RTX 3050Ti with AMP)
 - **Learning rate decay**: Exponential (γ=0.985)
 - **Test set**: 33 volumes
 
@@ -1180,10 +1178,9 @@ The 20-epoch training represents the **recommended production baseline**, succes
 ![Training Summary - 100 Epochs](./readme_images/training_summary_100epochs.png)
 
 **Training Details:**
-- **Training date**: October 28, 2025, 03:16
 - **Epochs completed**: 42/100 (early stopped at optimal point)
 - **Mean test Dice**: 0.8794 (excluding background)
-- **Training time**: ~4 hours (RTX 3050Ti with AMP)
+- **Training time**: ~5 hours (RTX 3050Ti with AMP)
 - **Learning rate decay**: Exponential (γ=0.985)
 - **Test set**: 33 volumes
 - **Early stopping**: Patience=10, triggered after epoch 42
@@ -1221,7 +1218,7 @@ The extended training configuration represents the **highest accuracy option**, 
 | Femur Right | 0.7334 | 0.8096 | 0.8197 | **+11.8%** |
 | **Min Dice** | **0.6799** | **0.7764** | **0.8104** | **+19.2%** |
 | **Test Cases** | 33 | 33 | 33 | - |
-| **Training Time** | **~1.2h** | **~2.5h** | **~4h** | - |
+| **Training Time** | **~1.5h** | **~3h** | **~5h** | - |
 | **Epochs Run** | 10/10 | 20/20 | 42/100 | - |
 | **Early Stopped** | No | No | Yes (Epoch 42) | - |
 | **Meets Requirement** | ❌ | ✅ | ✅ | - |
@@ -1276,7 +1273,7 @@ The extended training configuration represents the **highest accuracy option**, 
 - ❌ **Fails project requirement**: Femur Left (0.6799) below 0.7 threshold
 - **High variance**: Femur std ±0.0858 to ±0.1082 indicates unstable learning
 - **Incomplete convergence**: Only 5/6 classes meet requirement
-- **Fast training**: 1.2 hours, but insufficient for production use
+- **Fast training**: ~1.5 hours, but insufficient for production use
 - **Use case**: Debugging, pipeline validation, not for deployment
 
 **20 Epochs (Production Baseline - ✅ Recommended):**
@@ -1284,7 +1281,7 @@ The extended training configuration represents the **highest accuracy option**, 
 - ✅ **Significant improvement**: +6.8% mean Dice over 10 epochs (0.8098→0.8646)
 - ✅ **Femurs stabilized**: Left +14.2%, right +10.4% vs 10 epochs
 - ✅ **Reduced variance**: Femur std reduced 20-37%
-- ✅ **Best time-to-performance ratio**: Meets all requirements in 2.5 hours
+- ✅ **Best time-to-performance ratio**: Meets all requirements in ~3 hours
 - **Use case**: Standard production deployments, optimal balance of speed and accuracy
 
 **42 Epochs (High Accuracy - Maximum Performance):**
@@ -1293,7 +1290,7 @@ The extended training configuration represents the **highest accuracy option**, 
 - ✅ **Best femur performance**: Left 0.8104 (+19.2% vs 10 epochs), right 0.8197 (+11.8%)
 - ✅ **Most stable predictions**: Lowest standard deviations (femur left ±0.0455, -47% vs 10 epochs)
 - ✅ **Optimal early stopping**: Converged at epoch 42, prevented overfitting
-- **Diminishing returns**: +1.7% improvement over 20 epochs requires +60% more time
+- **Diminishing returns**: +1.7% improvement over 20 epochs requires +67% more time
 - **Use case**: Accuracy-critical applications, medical diagnosis, research baselines
 
 **Key Findings:**
@@ -1314,14 +1311,14 @@ The extended training configuration represents the **highest accuracy option**, 
    - **Stability increases with training**: More consistent predictions on test set
 
 4. **Training Efficiency Analysis**:
-   - **10→20 epochs**: +6.8% mean Dice (5.5 percentage points per hour)
-   - **20→42 epochs**: +1.7% mean Dice (1.1 percentage points per hour)
-   - **Efficiency ratio**: Early training is 5× more efficient, but doesn't meet requirements
+   - **10→20 epochs**: +6.8% mean Dice improvement in +1.5h additional training
+   - **20→42 epochs**: +1.7% mean Dice improvement in +2h additional training
+   - **Efficiency ratio**: Early training shows faster improvement, but doesn't meet requirements
 
 5. **Practical Recommendations**:
    - **❌ Avoid 10 epochs**: Does not meet project requirements
-   - **✅ Use 20 epochs for production**: Meets requirements, excellent ROI (2.5h)
-   - **✅ Use 42 epochs for critical applications**: Best accuracy, medical-grade performance (~4h)
+   - **✅ Use 20 epochs for production**: Meets requirements, excellent ROI (~3h)
+   - **✅ Use 42 epochs for critical applications**: Best accuracy, medical-grade performance (~5h)
 
 
 ---
